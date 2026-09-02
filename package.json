@@ -9,7 +9,7 @@
     "examples/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "node scripts/build.js",
     "test": "node --test tests/**/*.test.js",
     "typecheck": "tsc -b",
     "pack:all": "node scripts/pack-all.js",
