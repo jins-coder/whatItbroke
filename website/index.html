@@ -275,6 +275,88 @@ Running health and diagnostics checks...
           <code style="font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8;">npm install -g whatitbroke</code>
         </div>
       </div>
+
+      <!-- Zero-Bloat Modular Packaging Guarantee -->
+      <div class="zero-bloat-box" id="architecture-guarantee">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <span class="section-badge" style="color: #34d399;">Architecture Guarantee</span>
+            <h3 style="font-family: var(--font-heading); font-size: 1.8rem; font-weight: 800; color: white;">Zero-Bloat Modular Packaging</h3>
+            <p style="color: var(--text-secondary); max-width: 650px; margin-top: 6px;">
+              Does a Vue project pull in React or Angular? <strong>Never.</strong> Every framework adapter is 100% decoupled and independent. You only install what your application actually uses.
+            </p>
+          </div>
+          <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 16px 24px; text-align: center;">
+            <div style="font-size: 1.8rem; font-weight: 900; color: #34d399;">&lt; 5 kB</div>
+            <div style="font-size: 0.8rem; color: #a7f3d0; text-transform: uppercase; letter-spacing: 0.5px;">Avg. Gzipped Bundle</div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Your Application</th>
+                <th>Package to Install</th>
+                <th>What Gets Installed</th>
+                <th>What is Excluded</th>
+                <th>Bundle Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Vue 3</strong></td>
+                <td><code style="color: #38bdf8;">@whatitbroke/vue</code></td>
+                <td>Vue adapter + Core parser</td>
+                <td><span class="badge-green">0% React &bull; 0% Angular &bull; 0% Node</span></td>
+                <td><strong>~4.3 kB</strong></td>
+              </tr>
+              <tr>
+                <td><strong>React</strong></td>
+                <td><code style="color: #38bdf8;">@whatitbroke/react</code></td>
+                <td>React Error Boundary + Core parser</td>
+                <td><span class="badge-green">0% Vue &bull; 0% Angular &bull; 0% Node</span></td>
+                <td><strong>~7.4 kB</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Angular</strong></td>
+                <td><code style="color: #38bdf8;">@whatitbroke/angular</code></td>
+                <td>Angular ErrorHandler + DI parser</td>
+                <td><span class="badge-green">0% React &bull; 0% Vue &bull; 0% Node</span></td>
+                <td><strong>~5.7 kB</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Node.js</strong></td>
+                <td><code style="color: #38bdf8;">@whatitbroke/node</code></td>
+                <td>Uncaught hooks + HTTP/DB tracker</td>
+                <td><span class="badge-green">0% Frontend frameworks</span></td>
+                <td><strong>~6.2 kB</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- FAQ Section -->
+        <div class="faq-grid">
+          <div class="faq-card">
+            <div class="faq-question">
+              <span>❓</span> If my app is in Vue, does it download React or Angular?
+            </div>
+            <div class="faq-answer">
+              <strong>No.</strong> When you run <code>npm install @whatitbroke/vue</code>, only the Vue adapter and lightweight core utilities are installed. React, Angular, and AI SDKs are completely excluded.
+            </div>
+          </div>
+
+          <div class="faq-card">
+            <div class="faq-question">
+              <span>🛠️</span> How does the CLI handle framework detection?
+            </div>
+            <div class="faq-answer">
+              When you run <code>whatitbroke init</code>, it inspects your <code>package.json</code> and automatically configures only the adapter matching your project (e.g., Vue).
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
