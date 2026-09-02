@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WhatItBroke — Universal JavaScript &amp; TypeScript Application Debugger</title>
+  <meta name="description" content="WhatItBroke is a framework-aware debugging and root-cause analysis engine for Node.js, React, Vue, and Angular that automatically explains what broke, why it broke, and how to fix it." />
+  <meta name="keywords" content="debugger, root cause analysis, stacktrace, sourcemaps, nodejs, react, vue, angular, javascript, typescript" />
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="WhatItBroke — Universal Application Debugger" />
+  <meta property="og:description" content="Automatically answers: What broke? Where did it break? Why did it break? How can it be fixed?" />
+  <meta property="og:type" content="website" />
+  
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Navigation -->
+  <header class="navbar">
+    <div class="container nav-content">
+      <a href="#" class="brand" id="nav-brand-logo">
+        <div class="brand-icon">W</div>
+        <div class="brand-text">WhatIt<span>Broke</span></div>
+      </a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#playground">Playground</a></li>
+          <li><a href="#questions">4 Questions</a></li>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#cli">CLI &amp; Verification</a></li>
+          <li><a href="#frameworks">Adapters</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <a href="https://github.com/jins-coder/whatItbroke" target="_blank" rel="noopener" class="btn btn-secondary" id="btn-github-nav">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main>
+    <section class="hero">
+      <div class="container">
+        <div class="hero-pill">
+          <span></span> Production-Safe Root-Cause Debugger for Modern JS/TS
+        </div>
+
+        <h1 class="hero-title">
+          Stop guessing <span class="gradient-red">why it crashed.</span><br />
+          Understand <span class="gradient-text">WhatItBroke.</span>
+        </h1>
+
+        <p class="hero-subtitle">
+          The universal JavaScript &amp; TypeScript debugging engine that reconstructs execution paths, database queries, and component lifecycles to explain what broke, why it broke, and how to fix it.
+        </p>
+
+        <div class="hero-cta">
+          <a href="#playground" class="btn btn-primary" id="btn-hero-try">Try Interactive Debugger</a>
+          <a href="https://github.com/jins-coder/whatItbroke" target="_blank" rel="noopener" class="btn btn-secondary">Documentation &amp; Source</a>
+        </div>
+
+        <div class="install-bar">
+          <span class="install-command" id="hero-install-cmd">npm install -g whatitbroke</span>
+          <button class="copy-btn" onclick="copyInstall(this)" id="btn-copy-install">Copy</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 Questions Section -->
+    <section class="container" id="questions">
+      <div class="questions-banner">
+        <div class="question-card">
+          <div class="q-num">Question 1</div>
+          <h2 class="q-title">What Broke?</h2>
+          <p class="q-desc">Normalized error classification, exception severity assessment, and exact runtime failure context.</p>
+        </div>
+
+        <div class="question-card">
+          <div class="q-num">Question 2</div>
+          <h2 class="q-title">Where Did It Break?</h2>
+          <p class="q-desc">Original source file resolution with sourcemap decoding, exact line/column, and surrounding code snippets.</p>
+        </div>
+
+        <div class="question-card">
+          <div class="q-num">Question 3</div>
+          <h2 class="q-title">Why Did It Break?</h2>
+          <p class="q-desc">Chronological event timeline, preceding network calls, empty database query returns, and causal heuristics.</p>
+        </div>
+
+        <div class="question-card">
+          <div class="q-num">Question 4</div>
+          <h2 class="q-title">How Can It Be Fixed?</h2>
+          <p class="q-desc">Synthesized unified diff patches, potential downstream side-effect analysis, and isolated sandbox verification.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Playground Section -->
+    <section class="playground-section" id="playground">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-badge">Live Interactive Simulator</div>
+          <h2 class="section-title">See WhatItBroke in Action</h2>
+          <p class="section-subtitle">Select a framework failure scenario below and run instant root-cause analysis to inspect how WhatItBroke diagnoses the crash.</p>
+        </div>
+
+        <div class="playground-card">
+          <div class="playground-tabs">
+            <button class="framework-tab active" data-scenario="node" onclick="setScenario('node')" id="tab-scenario-node">
+              <span>🟢</span> Node.js (DB Null Pointer)
+            </button>
+            <button class="framework-tab" data-scenario="react" onclick="setScenario('react')" id="tab-scenario-react">
+              <span>⚛️</span> React (Async Render Race)
+            </button>
+            <button class="framework-tab" data-scenario="vue" onclick="setScenario('vue')" id="tab-scenario-vue">
+              <span>💚</span> Vue 3 (Reactivity Loss)
+            </button>
+            <button class="framework-tab" data-scenario="angular" onclick="setScenario('angular')" id="tab-scenario-angular">
+              <span>🔴</span> Angular (NullInjectorError)
+            </button>
+          </div>
+
+          <div class="playground-grid">
+            <!-- Left: Code Panel -->
+            <div class="code-panel">
+              <div class="panel-title">
+                <span>Vulnerable Source Code</span>
+                <span id="panel-file-label" style="color: #38bdf8;">user.service.ts:82</span>
+              </div>
+              <pre class="code-container"><code id="code-display">// Loading code scenario...</code></pre>
+              <button class="run-btn" onclick="runAnalysis()" id="btn-run-analysis">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Run Root Cause Analysis
+              </button>
+            </div>
+
+            <!-- Right: WhatItBroke Analysis Output -->
+            <div class="analysis-panel" id="analysis-results">
+              <!-- Dynamically populated by app.js -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLI & Fix Verification -->
+    <section class="container" id="cli" style="padding: 60px 0;">
+      <div class="section-header">
+        <div class="section-badge">Developer Tooling</div>
+        <h2 class="section-title">Production-Safe Fix Verification</h2>
+        <p class="section-subtitle">Never automatically modify production code. WhatItBroke tests and verifies patches in an isolated ephemeral sandbox first.</p>
+      </div>
+
+      <div class="terminal-card">
+        <div class="terminal-header">
+          <div class="terminal-dot dot-red"></div>
+          <div class="terminal-dot dot-yellow"></div>
+          <div class="terminal-dot dot-green"></div>
+          <div style="margin-left: 12px; display: flex; gap: 8px;">
+            <button class="copy-btn term-tab active" onclick="setTerminalTab('doctor')" style="padding: 2px 10px; font-size: 0.75rem;">whatitbroke doctor</button>
+            <button class="copy-btn term-tab" onclick="setTerminalTab('analyze')" style="padding: 2px 10px; font-size: 0.75rem;">whatitbroke analyze</button>
+            <button class="copy-btn term-tab" onclick="setTerminalTab('verify')" style="padding: 2px 10px; font-size: 0.75rem;">whatitbroke verify</button>
+          </div>
+        </div>
+        <pre class="terminal-body" id="terminal-content">
+<span style="color: #38bdf8;">$ whatitbroke doctor</span>
+WhatItBroke Environment Doctor
+Running health and diagnostics checks...
+
+  <span style="color: #34d399;">✔</span> <strong>Node.js Version:</strong> v22.12.0 (Supported: >= 18.0.0)
+  <span style="color: #34d399;">✔</span> <strong>Source Maps:</strong> Enabled in tsconfig.json (sourceMap: true)
+  <span style="color: #34d399;">✔</span> <strong>Configuration:</strong> Valid whatitbroke.config.json detected
+  <span style="color: #34d399;">✔</span> <strong>Privacy Engine:</strong> Active zero-leak redaction enabled (tokens, cookies, auth headers)
+
+<span style="color: #34d399;">Doctor status: Healthy! WhatItBroke is ready to debug.</span>
+        </pre>
+      </div>
+    </section>
+
+    <!-- Features Grid -->
+    <section class="container" id="features">
+      <div class="section-header">
+        <div class="section-badge">Core Pillars</div>
+        <h2 class="section-title">Built for Modern Engineering Teams</h2>
+        <p class="section-subtitle">Lightweight runtime footprint, framework-agnostic architecture, and privacy-first engineering.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🛡️</div>
+          <h3 class="feature-title">Privacy-First Engine</h3>
+          <p class="feature-desc">Deeply redacts authorization headers, session cookies, database credentials, JWTs, and AWS tokens before any serialization or display.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3 class="feature-title">Zero-AI Dependency</h3>
+          <p class="feature-desc">100% deterministic heuristic rules engine operates completely offline without network calls, third-party services, or API bills.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⏱️</div>
+          <h3 class="feature-title">Chronological Timeline</h3>
+          <p class="feature-desc">Bounded ring buffer captures requests, component renders, state mutations, and empty database returns immediately prior to the crash.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🗺️</div>
+          <h3 class="feature-title">Original Sourcemaps</h3>
+          <p class="feature-desc">Seamlessly maps minified or transpiled stack traces back to original TypeScript source files, displaying exact highlighted code lines.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🧪</div>
+          <h3 class="feature-title">Sandbox Fix Verification</h3>
+          <p class="feature-desc">Tests generated unified patches against syntax checks and re-evaluates the failure scenario in isolation without touching production code.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🧠</div>
+          <h3 class="feature-title">Optional AI Layer</h3>
+          <p class="feature-desc">Opt-in multi-provider AI support (OpenAI, Google Gemini, Anthropic Claude) with strictly sanitized payloads for augmented reasoning.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Framework Adapters -->
+    <section class="container" id="frameworks" style="padding: 40px 0 80px;">
+      <div class="section-header">
+        <div class="section-badge">Ecosystem</div>
+        <h2 class="section-title">Universal Framework Adapters</h2>
+        <p class="section-subtitle">Dedicated npm packages for every major modern runtime.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3 class="feature-title">@whatitbroke/node</h3>
+          <p class="feature-desc" style="margin-bottom: 16px;">Hooks into <code>uncaughtException</code> and <code>unhandledRejection</code>. Features Express HTTP middleware and SQL null query detectors.</p>
+          <code style="font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8;">npm install @whatitbroke/node</code>
+        </div>
+
+        <div class="feature-card">
+          <h3 class="feature-title">@whatitbroke/react</h3>
+          <p class="feature-desc" style="margin-bottom: 16px;"><code>&lt;WhatItBrokeBoundary&gt;</code> error boundary component, root-to-leaf component render path tracing, and hook rule violations.</p>
+          <code style="font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8;">npm install @whatitbroke/react</code>
+        </div>
+
+        <div class="feature-card">
+          <h3 class="feature-title">@whatitbroke/vue</h3>
+          <p class="feature-desc" style="margin-bottom: 16px;">Vue 3 plugin with <code>app.config.errorHandler</code> integration, setup function inspection, and reactive prop destructuring warnings.</p>
+          <code style="font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8;">npm install @whatitbroke/vue</code>
+        </div>
+
+        <div class="feature-card">
+          <h3 class="feature-title">@whatitbroke/angular</h3>
+          <p class="feature-desc" style="margin-bottom: 16px;"><code>WhatItBrokeErrorHandler</code> implementing Angular's <code>ErrorHandler</code>, diagnosing <code>NullInjectorError</code> and circular DI.</p>
+          <code style="font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8;">npm install @whatitbroke/angular</code>
+        </div>
+
+        <div class="feature-card">
+          <h3 class="feature-title">@whatitbroke/core</h3>
+          <p class="feature-desc" style="margin-bottom: 16px;">Framework-agnostic core engine, universal stack parser, sourcemap extractor, timeline ring buffer, and HTML reporter.</p>
+          <code style="font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8;">npm install @whatitbroke/core</code>
+        </div>
+
+        <div class="feature-card">
+          <h3 class="feature-title">whatitbroke (CLI)</h3>
+          <p class="feature-desc" style="margin-bottom: 16px;">The global command-line debugger for diagnostics, crash log analysis, sandbox fix verification, and HTML export.</p>
+          <code style="font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8;">npm install -g whatitbroke</code>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-links">
+        <a href="https://github.com/jins-coder/whatItbroke" target="_blank" rel="noopener">GitHub Repository</a>
+        <a href="https://github.com/jins-coder/whatItbroke/blob/main/docs/ARCHITECTURE.md" target="_blank" rel="noopener">Architecture</a>
+        <a href="https://github.com/jins-coder/whatItbroke/blob/main/docs/CLI.md" target="_blank" rel="noopener">CLI Guide</a>
+        <a href="https://github.com/jins-coder/whatItbroke/blob/main/docs/ADAPTERS.md" target="_blank" rel="noopener">Adapters</a>
+        <a href="https://www.npmjs.com/package/whatitbroke" target="_blank" rel="noopener">NPM Registry</a>
+      </div>
+      <p>MIT Licensed &copy; 2026 WhatItBroke Team. Universal Application Debugger.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
