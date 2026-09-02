@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NodeAdapter } from '../../packages/node/dist/index.js';
-import { ReactAdapter, HooksDetector, WhatItBrokeBoundary, ReactErrorOverlay } from '../../packages/react/dist/index.js';
+import { ReactAdapter, HooksDetector, WhatItBrokeBoundary, WhatItBrokeErrorBoundary as ReactErrorBoundary, ReactErrorOverlay } from '../../packages/react/dist/index.js';
 import { VueAdapter, WhatItBrokeVue, VueErrorOverlay, WhatItBrokeErrorBoundary } from '../../packages/vue/dist/index.js';
-import { AngularAdapter, DIAnalyzer, AngularErrorOverlay } from '../../packages/angular/dist/index.js';
+import { AngularAdapter, DIAnalyzer, AngularErrorOverlay, provideWhatItBroke } from '../../packages/angular/dist/index.js';
 
 test('NodeAdapter - captures process runtime and environment context', () => {
   const adapter = new NodeAdapter();
@@ -233,6 +233,27 @@ test('WhatItBrokeErrorBoundary - defined and exported cleanly for Vue 3', () => 
   assert.ok(WhatItBrokeErrorBoundary.props);
   assert.ok(WhatItBrokeErrorBoundary.setup);
 });
+
+test('WhatItBrokeErrorBoundary (React) - exported alias and extracts component names from files', () => {
+  assert.equal(ReactErrorBoundary, WhatItBrokeBoundary);
+
+  const adapter = new ReactAdapter();
+  const stack = `
+    at UserProfileCard (http://localhost:5173/src/components/UserProfileCard.tsx:42:11)
+    at DashboardView (created by App)
+    in App`;
+  const parsed = adapter.parseComponentStack(stack);
+  assert.equal(parsed.primaryComponent, 'UserProfileCard');
+  assert.deepEqual(parsed.renderPath, ['App', 'DashboardView', 'UserProfileCard']);
+});
+
+test('provideWhatItBroke - returns Angular provider config for standalone apps', () => {
+  const providers = provideWhatItBroke({ overlay: true });
+  assert.ok(Array.isArray(providers));
+  assert.equal(providers[0].provide, 'ErrorHandler');
+  assert.equal(typeof providers[0].useFactory, 'function');
+});
+
 
 
 

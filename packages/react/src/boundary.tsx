@@ -209,3 +209,6 @@ export class WhatItBrokeBoundary extends Component<WhatItBrokeBoundaryProps, Wha
     );
   }
 }
+
+export { WhatItBrokeBoundary as WhatItBrokeErrorBoundary };
+

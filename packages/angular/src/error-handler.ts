@@ -53,3 +53,22 @@ export class WhatItBrokeErrorHandler {
     }
   }
 }
+
+/**
+ * Modern standalone Angular provider for WhatItBroke
+ * Usage in app.config.ts:
+ * ```ts
+ * export const appConfig: ApplicationConfig = {
+ *   providers: [provideWhatItBroke({ overlay: true })]
+ * };
+ * ```
+ */
+export function provideWhatItBroke(options?: WhatItBrokeAngularOptions) {
+  return [
+    {
+      provide: 'ErrorHandler',
+      useFactory: () => new WhatItBrokeErrorHandler(options),
+    },
+  ];
+}
+

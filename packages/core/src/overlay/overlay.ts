@@ -200,6 +200,55 @@ export class ErrorOverlay {
         }
       });
     }
+
+    // 4. Real-Time Live Network (fetch) & Latency Tracking
+    if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+      const origFetch = window.fetch;
+      window.fetch = async (...args) => {
+        const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request)?.url || 'unknown';
+        const method = (args[1]?.method || 'GET').toUpperCase();
+        const start = performance.now();
+        getGlobalTimeline().recordApiRequest(url, method);
+
+        try {
+          const res = await origFetch(...args);
+          const duration = Math.round(performance.now() - start);
+          getGlobalTimeline().recordApiResponse(url, res.status, duration);
+
+          if (duration >= 1000) {
+            this.pushPerformance({
+              type: 'slow_network',
+              title: `Slow API: ${method} ${url.slice(0, 40)}`,
+              detail: `Request completed in ${duration}ms (threshold: 1000ms)`,
+              durationMs: duration,
+            });
+          }
+
+          if (res.status >= 400) {
+            this.pushWarning(`HTTP ${res.status}: ${method} ${url}`);
+          }
+
+          return res;
+        } catch (err: any) {
+          const duration = Math.round(performance.now() - start);
+          getGlobalTimeline().record('exception', `Network Failure: ${method} ${url} - ${err.message || 'Failed to fetch'}`, {
+            details: { url, method, duration },
+          });
+          this.pushWarning(`Network Failure: ${method} ${url} (${err.message || 'Failed to fetch'})`);
+          throw err;
+        }
+      };
+    }
+
+    // 5. Real-Time SPA Navigation Tracking
+    if (typeof window !== 'undefined') {
+      window.addEventListener('popstate', () => {
+        getGlobalTimeline().record('custom_breadcrumb', `Navigation: ${location.pathname}${location.search}`);
+      });
+      window.addEventListener('hashchange', () => {
+        getGlobalTimeline().record('custom_breadcrumb', `Route Changed: ${location.hash}`);
+      });
+    }
   }
 
   private mount(): void {
@@ -262,24 +311,27 @@ export class ErrorOverlay {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         .wib-fab {
           position: fixed; ${posRules[pos] || posRules['bottom-right']} z-index: 2147483647;
-          display: flex; align-items: center; gap: 9px; padding: 9px 15px;
-          background: rgba(15, 23, 42, 0.92); border: 1px solid ${badgeBorder};
-          border-radius: 9999px; color: #f8fafc; font-size: 13px; font-weight: 600; cursor: pointer;
-          backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-          box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 12px ${errCount > 0 ? 'rgba(244,63,94,0.4)' : warnCount > 0 || perfCount > 0 ? 'rgba(245,158,11,0.25)' : 'rgba(16,185,129,0.2)'};
-          transition: all 0.2s cubic-bezier(0.16,1,0.3,1); user-select: none;
+          width: 48px; height: 48px; border-radius: 14px;
+          display: flex; align-items: center; justify-content: center;
+          background: rgba(15, 23, 42, 0.94); border: 1px solid ${badgeBorder};
+          cursor: pointer; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+          box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 16px ${errCount > 0 ? 'rgba(244,63,94,0.45)' : warnCount > 0 || perfCount > 0 ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.2)'};
+          transition: all 0.25s cubic-bezier(0.16,1,0.3,1); user-select: none;
         }
-        .wib-fab:hover { transform: translateY(-2px) scale(1.02); background: rgba(30,41,59,0.98); }
-        .wib-dot {
-          width: 8px; height: 8px; border-radius: 50%;
-          background: ${badgeColor}; box-shadow: 0 0 8px ${badgeColor};
+        .wib-fab:hover { transform: translateY(-3px) scale(1.06); background: rgba(30,41,59,0.98); }
+        .wib-icon {
+          width: 24px; height: 24px; fill: none; stroke: ${errCount > 0 ? '#f43f5e' : warnCount > 0 || perfCount > 0 ? '#f59e0b' : '#38bdf8'};
+          stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+        }
+        .wib-badge {
+          position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; padding: 0 5px;
+          border-radius: 9999px; background: ${errCount > 0 ? '#f43f5e' : warnCount > 0 || perfCount > 0 ? '#f59e0b' : '#10b981'};
+          color: ${warnCount > 0 && errCount === 0 ? '#000' : '#fff'}; font-size: 10px; font-weight: 800; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          display: flex; align-items: center; justify-content: center; border: 2px solid #0b0f19;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.5);
           ${errCount > 0 ? 'animation: wib-pulse 1.8s infinite;' : ''}
         }
-        @keyframes wib-pulse { 0%, 100% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.15); opacity: 1; } }
-        .wib-count {
-          padding: 2px 7px; font-size: 11px; font-weight: 700; border-radius: 9999px;
-          background: ${errCount > 0 ? '#e11d48' : warnCount > 0 || perfCount > 0 ? '#d97706' : '#065f46'}; color: #fff;
-        }
+        @keyframes wib-pulse { 0%, 100% { transform: scale(0.95); opacity: 0.85; } 50% { transform: scale(1.15); opacity: 1; } }
         .wib-backdrop {
           position: fixed; inset: 0; background: rgba(3, 7, 18, 0.8); backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px); z-index: 2147483646; display: flex;
@@ -355,10 +407,11 @@ export class ErrorOverlay {
         .wib-chip-info { background: rgba(148,163,184,0.15); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.3); }
       </style>
 
-      <button class="wib-fab" id="wib-fab" title="WhatItBroke Diagnostic HUD (Click to Inspect)">
-        <span class="wib-dot"></span>
-        <span>WhatItBroke</span>
-        <span class="wib-count">${badgeCount}</span>
+      <button class="wib-fab" id="wib-fab" title="WhatItBroke Diagnostics (Click to Inspect &bull; Ctrl+Shift+D)">
+        <svg class="wib-icon" viewBox="0 0 24 24">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
+        <span class="wib-badge">${badgeCount}</span>
       </button>
 
       ${this.isOpen ? `

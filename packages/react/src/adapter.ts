@@ -72,15 +72,26 @@ export class ReactAdapter implements DebugAdapter {
 
     for (const rawLine of lines) {
       const line = rawLine.trim();
-      const match = line.match(/^in\s+([A-Za-z0-9_]+)/);
-      if (match) {
-        components.push(match[1]);
+      let compName: string | undefined;
+
+      const match = line.match(/^(?:in|at)\s+([A-Za-z0-9_$]+)/);
+      if (match && match[1] !== 'Unknown' && match[1] !== 'anonymous') {
+        compName = match[1];
+      } else {
+        const fileMatch = line.match(/(?:at|created by)\s+.*?[/\\]([A-Za-z0-9_$-]+)\.[a-zA-Z]+/);
+        if (fileMatch) {
+          compName = fileMatch[1];
+        } else {
+          const createdMatch = line.match(/created by\s+([A-Za-z0-9_$]+)/);
+          if (createdMatch) compName = createdMatch[1];
+        }
+      }
+
+      if (compName && !components.includes(compName)) {
+        components.push(compName);
       }
     }
 
-    // In React componentStack, the top line is the crashing leaf component,
-    // and subsequent lines are parent components (e.g. leaf -> parent -> root).
-    // Reverse it to create chronological root-to-leaf renderPath.
     const reversed = [...components].reverse();
     const primary = components[0] || 'Component';
 
