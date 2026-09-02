@@ -1,6 +1,6 @@
 {
   "name": "whatitbroke",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "description": "Universal Application Debugger and Root-Cause Analysis CLI",
   "main": "./dist/index.js",
@@ -29,13 +29,13 @@
     "access": "public"
   },
   "dependencies": {
-    "@whatitbroke/shared": "^1.0.3",
-    "@whatitbroke/core": "^1.0.3",
-    "@whatitbroke/node": "^1.0.3",
-    "@whatitbroke/react": "^1.0.3",
-    "@whatitbroke/vue": "^1.0.3",
-    "@whatitbroke/angular": "^1.0.3",
-    "@whatitbroke/ai": "^1.0.3"
+    "@whatitbroke/shared": "^1.0.4",
+    "@whatitbroke/core": "^1.0.4",
+    "@whatitbroke/node": "^1.0.4",
+    "@whatitbroke/react": "^1.0.4",
+    "@whatitbroke/vue": "^1.0.4",
+    "@whatitbroke/angular": "^1.0.4",
+    "@whatitbroke/ai": "^1.0.4"
   },
   "keywords": [
     "debugger",

@@ -1,6 +1,6 @@
 {
   "name": "@whatitbroke/node",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "description": "Node.js debug adapter, async context tracker, and HTTP/DB event collectors",
   "main": "./dist/index.js",
@@ -25,8 +25,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@whatitbroke/shared": "^1.0.3",
-    "@whatitbroke/core": "^1.0.3"
+    "@whatitbroke/shared": "^1.0.4",
+    "@whatitbroke/core": "^1.0.4"
   },
   "keywords": [
     "debugger",

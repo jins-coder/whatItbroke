@@ -1,6 +1,6 @@
 {
   "name": "@whatitbroke/ai",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "description": "Optional AI analysis layer with OpenAI, Gemini, Anthropic, and Mock providers for WhatItBroke",
   "main": "./dist/index.js",
@@ -25,7 +25,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@whatitbroke/shared": "^1.0.3"
+    "@whatitbroke/shared": "^1.0.4"
   },
   "keywords": [
     "debugger",
