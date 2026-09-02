@@ -19,6 +19,8 @@ const PACKAGES = [
 ];
 
 const isDryRun = process.argv.includes('--dry-run');
+const otpArg = process.argv.find((arg) => arg.startsWith('--otp='));
+const otpFlag = otpArg ? ` ${otpArg}` : '';
 
 async function main() {
   console.log('🚀 WhatItBroke Monorepo NPM Publisher\n');
@@ -39,7 +41,7 @@ async function main() {
   }
 
   // 2. Build
-  console.log('Compiling all packages...');
+  console.log('Compiling all packages in topological order...');
   execSync('npm.cmd run build', { stdio: 'inherit' });
 
   // 3. Test
@@ -65,11 +67,28 @@ async function main() {
     const version = pkgJson.version;
 
     console.log(`\n──────────────────────────────────────────`);
+    console.log(`Checking ${pkgName}@${version}...`);
+
+    // Check if already published on npm
+    try {
+      const remoteVer = execSync(`npm.cmd view ${pkgName}@${version} version`, {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'ignore']
+      }).trim();
+
+      if (remoteVer === version) {
+        console.log(`ℹ ${pkgName}@${version} is already published on npm. Skipping.`);
+        continue;
+      }
+    } catch {
+      // Not published yet, proceed to publish
+    }
+
     console.log(`Publishing ${pkgName}@${version}...`);
 
     const publishCmd = isDryRun
-      ? 'npm.cmd publish --access public --dry-run'
-      : 'npm.cmd publish --access public';
+      ? `npm.cmd publish --access public --dry-run${otpFlag}`
+      : `npm.cmd publish --access public${otpFlag}`;
 
     try {
       execSync(publishCmd, { cwd: pkgDir, stdio: 'inherit' });
@@ -77,6 +96,9 @@ async function main() {
     } catch (err) {
       console.error(`❌ Failed to publish ${pkgName}:`, err.message);
       if (!isDryRun) {
+        console.error(`\nTip: If npm is asking for 2FA in the browser, you can either:`);
+        console.error(`  1. Use your 6-digit authenticator code: npm run publish:all -- --otp=XXXXXX`);
+        console.error(`  2. Or use an npm Access Token (Automation token) from https://www.npmjs.com/settings/webuildit/tokens`);
         process.exit(1);
       }
     }
