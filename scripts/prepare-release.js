@@ -12,12 +12,12 @@ const PACKAGES = [
   'packages/cli',
 ];
 
-const NEW_VERSION = '1.0.1';
+const NEW_VERSION = process.argv[2] || '1.0.3';
 
-console.log(`Preparing release ${NEW_VERSION} with README.md and LICENSE for all packages...\n`);
+console.log(`Preparing release ${NEW_VERSION} across all monorepo packages...\n`);
 
-const rootReadme = fs.readFileSync('README.md', 'utf-8');
-const rootLicense = fs.readFileSync('LICENSE', 'utf-8');
+const rootReadme = fs.existsSync('README.md') ? fs.readFileSync('README.md', 'utf-8') : '';
+const rootLicense = fs.existsSync('LICENSE') ? fs.readFileSync('LICENSE', 'utf-8') : '';
 
 // 1. Update root package.json
 const rootPkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
@@ -48,11 +48,15 @@ for (const pkgRel of PACKAGES) {
 
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2) + '\n');
 
-  // Copy README and LICENSE
-  fs.writeFileSync(path.join(pkgDir, 'README.md'), rootReadme);
-  fs.writeFileSync(path.join(pkgDir, 'LICENSE'), rootLicense);
+  // Preserve package-specific README if already present; only copy if missing
+  if (!fs.existsSync(path.join(pkgDir, 'README.md')) && rootReadme) {
+    fs.writeFileSync(path.join(pkgDir, 'README.md'), rootReadme);
+  }
+  if (!fs.existsSync(path.join(pkgDir, 'LICENSE')) && rootLicense) {
+    fs.writeFileSync(path.join(pkgDir, 'LICENSE'), rootLicense);
+  }
 
-  console.log(`✔ Updated ${pkg.name}@${NEW_VERSION} (README & LICENSE added)`);
+  console.log(`✔ Updated ${pkg.name}@${NEW_VERSION}`);
 }
 
-console.log('\n🎉 All packages prepared for v1.0.1 release!');
+console.log(`\n🎉 All packages bumped to v${NEW_VERSION}!`);
