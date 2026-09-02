@@ -3,12 +3,16 @@
  * Implements Angular's ErrorHandler interface to intercept and analyze all uncaught Angular errors.
  */
 
-import { RootCauseReport } from '@whatitbroke/shared';
+import { RootCauseReport, formatReportCLI } from '@whatitbroke/shared';
+import { ErrorOverlay } from '@whatitbroke/core';
 import { AngularAdapter } from './adapter.js';
 
 export interface WhatItBrokeAngularOptions {
   logToConsole?: boolean;
   onError?: (report: RootCauseReport, error: Error) => void;
+  overlay?: boolean;
+  overlayPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  autoOpenOnCrash?: boolean;
 }
 
 export class WhatItBrokeErrorHandler {
@@ -18,6 +22,13 @@ export class WhatItBrokeErrorHandler {
   constructor(options?: WhatItBrokeAngularOptions) {
     this.adapter = new AngularAdapter();
     this.options = options;
+
+    if (options?.overlay !== false && typeof window !== 'undefined' && typeof document !== 'undefined') {
+      ErrorOverlay.init({
+        position: options?.overlayPosition,
+        autoOpenOnCrash: options?.autoOpenOnCrash !== false,
+      });
+    }
   }
 
   public async handleError(error: any): Promise<void> {
@@ -25,13 +36,16 @@ export class WhatItBrokeErrorHandler {
       const report = await this.adapter.analyzeAngularError(error);
 
       if (this.options?.logToConsole !== false) {
-        console.error(
-          `\x1b[31m\x1b[1m🔴 WHAT IT BROKE (Angular)\x1b[0m\n${report.headline}\n📍 ${report.affectedLocation.file}:${report.affectedLocation.line}\n\nCAUSE:\n${report.rootCause}\n\nRECOMMENDED FIX:\n${report.suggestedFix.explanation}`
-        );
+        console.error(formatReportCLI(report));
+      }
+
+      const errObj = error instanceof Error ? error : new Error(String(error));
+
+      if (this.options?.overlay !== false && typeof window !== 'undefined') {
+        ErrorOverlay.addReport(report, errObj);
       }
 
       if (this.options?.onError) {
-        const errObj = error instanceof Error ? error : new Error(String(error));
         this.options.onError(report, errObj);
       }
     } catch (e) {

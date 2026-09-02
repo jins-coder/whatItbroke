@@ -4,7 +4,11 @@
 
 import { RootCauseReport, TimelineEvent } from './types.js';
 
-const isColorSupported = !process.env.NO_COLOR && process.stdout?.isTTY !== false;
+const isColorSupported =
+  typeof process !== 'undefined' &&
+  Boolean(process?.env) &&
+  !process.env.NO_COLOR &&
+  process.stdout?.isTTY !== false;
 
 export const colors = {
   reset: isColorSupported ? '\x1b[0m' : '',

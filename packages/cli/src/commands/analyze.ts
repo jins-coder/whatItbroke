@@ -89,7 +89,7 @@ export async function runAnalyze(options: AnalyzeOptions = {}): Promise<RootCaus
   if (options.output) {
     const outPath = path.resolve(cwd, options.output);
     const fmt = options.format || (outPath.endsWith('.html') ? 'html' : outPath.endsWith('.json') ? 'json' : 'cli');
-    core.saveReportToFile(reports[0], outPath);
+    await core.saveReportToFile(reports[0], outPath);
     console.log(`Report exported to ${c.cyan}${outPath}${c.reset} (${fmt.toUpperCase()})\n`);
   }
 

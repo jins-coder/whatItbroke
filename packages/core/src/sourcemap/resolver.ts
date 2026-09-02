@@ -3,9 +3,9 @@
  * Reconstructs original source files and extracts context snippets.
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { SourceLocation, SourceSnippet, StackFrame } from '@whatitbroke/shared';
+
+declare const require: any;
 
 export interface SourceMapData {
   version: number;
@@ -88,23 +88,31 @@ export class SourceMapResolver {
     if (this.fileCache.has(filePath)) return this.fileCache.get(filePath)!;
     if (this.fileCache.has(normalized)) return this.fileCache.get(normalized)!;
 
-    // Try finding on disk
-    const candidates = [
-      filePath,
-      projectRoot ? path.resolve(projectRoot, filePath) : null,
-      projectRoot ? path.resolve(projectRoot, normalized) : null,
-    ].filter(Boolean) as string[];
+    // In browser, skip filesystem lookups cleanly without importing node:fs
+    if (typeof window !== 'undefined' || typeof process === 'undefined' || !process.versions?.node) {
+      return null;
+    }
 
-    for (const candidate of candidates) {
-      try {
+    try {
+      const fs = typeof require !== 'undefined' ? require('node:fs') : (process as any).getBuiltinModule?.('node:fs');
+      const path = typeof require !== 'undefined' ? require('node:path') : (process as any).getBuiltinModule?.('node:path');
+      if (!fs || !path) return null;
+
+      const candidates = [
+        filePath,
+        projectRoot ? path.resolve(projectRoot, filePath) : null,
+        projectRoot ? path.resolve(projectRoot, normalized) : null,
+      ].filter(Boolean) as string[];
+
+      for (const candidate of candidates) {
         if (fs.existsSync(candidate)) {
           const content = fs.readFileSync(candidate, 'utf-8');
           this.fileCache.set(filePath, content);
           return content;
         }
-      } catch {
-        // ignore read error
       }
+    } catch {
+      // Ignore in browser/bundled runtimes
     }
 
     return null;

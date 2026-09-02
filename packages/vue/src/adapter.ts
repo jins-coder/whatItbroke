@@ -25,6 +25,8 @@ export interface VueErrorExtras {
   componentName?: string;
   props?: Record<string, unknown>;
   state?: Record<string, unknown>;
+  captureComponentStack?: boolean;
+  captureReactivityLoss?: boolean;
 }
 
 export class VueAdapter implements DebugAdapter {
@@ -56,13 +58,38 @@ export class VueAdapter implements DebugAdapter {
 
   public extractComponentName(instance: any): string {
     if (!instance) return 'VueComponent';
-    return (
+    const rawName =
       instance.$options?.name ||
       instance.type?.name ||
       instance.type?.__name ||
-      instance.$vnode?.componentOptions?.tag ||
-      'AnonymousVueComponent'
-    );
+      instance.$vnode?.componentOptions?.tag;
+
+    if (rawName && rawName !== 'Anonymous') return rawName;
+
+    // In Vue 3 <script setup>, component name often derives from file path (__file)
+    const filePath = instance.type?.__file;
+    if (typeof filePath === 'string') {
+      const base = filePath.split(/[/\\]/).pop()?.replace(/\.\w+$/, '');
+      if (base) return base;
+    }
+
+    return 'AnonymousVueComponent';
+  }
+
+  public extractComponentStack(instance: any): string[] {
+    if (!instance) return ['VueComponent'];
+    const stack: string[] = [];
+    const seen = new Set<any>();
+    let current = instance;
+
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      const name = this.extractComponentName(current);
+      stack.unshift(name);
+      current = current.parent || current.$parent;
+    }
+
+    return stack.length > 0 ? stack : ['App', this.extractComponentName(instance)];
   }
 
   public captureContext(error: unknown, extras?: VueErrorExtras): DebugContext {
@@ -85,11 +112,15 @@ export class VueAdapter implements DebugAdapter {
       ? 'render'
       : 'update';
 
+    const componentStack = extras?.captureComponentStack !== false
+      ? this.extractComponentStack(extras?.instance)
+      : [compName];
+
     const componentCtx: ComponentContext = {
       name: compName,
       props: extras?.props || extras?.instance?.$props,
-      state: extras?.state || extras?.instance?.$data,
-      renderPath: ['App', compName],
+      state: extras?.state || extras?.instance?.$data || extras?.instance?.setupState,
+      renderPath: componentStack,
       lifecyclePhase: lifecycle,
       file: source.file,
       line: source.line,
@@ -138,6 +169,13 @@ export class VueAdapter implements DebugAdapter {
         },
       },
     };
+  }
+
+  /**
+   * Convenience method matching README documentation
+   */
+  public async handleVueError(error: unknown, instance?: any, info?: string) {
+    return this.analyzeVueError(error, { instance, info });
   }
 
   public async analyzeVueError(error: unknown, extras?: VueErrorExtras) {

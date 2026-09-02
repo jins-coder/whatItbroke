@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@whatitbroke/vue.svg)](https://www.npmjs.com/package/@whatitbroke/vue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-`@whatitbroke/vue` integrates directly into Vue 3's error handling lifecycle to trace component hierarchies, setup state, lifecycle hook failures, and reactive prop destructuring bugs.
+`@whatitbroke/vue` integrates directly into Vue 3's error and warning lifecycle to trace component hierarchies, setup state, lifecycle hook failures, and reactive prop destructuring bugs. Includes a zero-config, in-page diagnostics HUD powered by Shadow DOM.
 
 ---
 
@@ -14,6 +14,8 @@
 ```bash
 npm install @whatitbroke/vue @whatitbroke/core @whatitbroke/shared
 ```
+
+> **Zero Configuration Required**: Pure browser-native ESM. Works out of the box in modern Vite, Webpack, Nuxt, and Vitest without any `optimizeDeps` workarounds or `index.html` polyfills.
 
 ---
 
@@ -30,8 +32,21 @@ const app = createApp(App);
 
 // Install WhatItBroke Vue plugin
 app.use(WhatItBrokeVue, {
-  onError: (report) => {
+  // In-Page Diagnostics HUD (Floating Badge & Diagnostic Modal)
+  overlay: true,                     // default: true in browser
+  overlayPosition: 'bottom-right',   // 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
+  autoOpenOnCrash: true,             // Automatically expand popup on error (default: true)
+
+  // Vue Diagnostics & Warning Hooks
+  captureReactivityLoss: true,       // Intercepts mutating readonly props & broken refs
+  captureComponentStack: true,       // Traverses full parent-to-child hierarchy
+
+  // Optional Handlers
+  onError: (report, error) => {
     console.error('WhatItBroke Diagnostic Report:', report);
+  },
+  customErrorHandler: (err, instance, info) => {
+    // Automatically chained
   }
 });
 
@@ -42,8 +57,15 @@ app.mount('#app');
 
 ## Key Features
 
-### 1. Vue Reactivity Loss Detection
-Destructuring props in `<script setup>` breaks Vue 3 reactivity tracking. WhatItBroke automatically detects when a component breaks reactivity and generates the correct `toRefs(props)` unified patch:
+### 1. In-Page Diagnostics HUD (Shadow DOM)
+When an error occurs, WhatItBroke renders a floating status badge and an interactive diagnostic popup directly on the page:
+- **Zero Style Leakage**: Encapsulated in an isolated **Shadow DOM** (`mode: 'open'`) with `:host { all: initial }`. WhatItBroke styles cannot leak into your application, and your app's styles (Tailwind, Bootstrap, resets) cannot distort the HUD.
+- **Root Cause & Unified Patch**: Displays "Why it broke" and the recommended fix with code diff.
+- **Component Breadcrumb**: Displays true component hierarchy (`App > Dashboard > JobTracker`).
+- **Interactive State Inspector**: Inspect active component props and `setupState`.
+
+### 2. Vue Reactivity Loss Detection
+Destructuring props in `<script setup>` breaks Vue 3 reactivity tracking. WhatItBroke flags this destructuring and warns before fatal dereferences occur:
 
 ```vue
 <!-- ❌ Reactivity Broken -->
@@ -60,10 +82,13 @@ const { items } = props;
 + const { items } = toRefs(props);
 ```
 
-### 2. Component Hierarchy Inspection
-When an error occurs during template rendering or in a lifecycle hook (`onMounted`, `onUpdated`), WhatItBroke extracts the active component name, props, setup state, and parent hierarchy.
+### 3. Component Hierarchy Inspection
+When an error occurs during template rendering or lifecycle hooks (`onMounted`, `onUpdated`), WhatItBroke walks `instance.parent` to extract the full component hierarchy:
+```
+['App', 'Dashboard', 'JobTracker', 'ErrorLab']
+```
 
-### 3. Programmatic Vue Adapter
+### 4. Programmatic Vue Adapter
 ```ts
 import { VueAdapter } from '@whatitbroke/vue';
 import { WhatItBrokeCore } from '@whatitbroke/core';
@@ -71,14 +96,15 @@ import { WhatItBrokeCore } from '@whatitbroke/core';
 const core = new WhatItBrokeCore();
 const adapter = new VueAdapter(core);
 
-// Hook into an error instance:
-adapter.handleVueError(error, componentInstance, 'render function');
+// Hook into any caught error:
+const report = await adapter.handleVueError(error, componentInstance, 'render function');
+console.log(report.rootCause);
 ```
 
 ---
 
 ## Zero-Bloat Guarantee
-`@whatitbroke/vue` is less than **4.5 kB gzipped**. It contains **0% React, 0% Angular, and 0% Node.js server dependencies**. `vue` is specified as an optional `peerDependency`.
+`@whatitbroke/vue` is less than **5 kB gzipped**. It contains **0% React, 0% Angular, and 0% Node.js server dependencies**. `vue` is specified as an optional `peerDependency`.
 
 ## License
 

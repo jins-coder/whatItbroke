@@ -1,6 +1,6 @@
 {
   "name": "@whatitbroke/core",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "description": "Core debug engine, stack parser, sourcemap resolver, timeline, and root-cause analyzer",
   "main": "./dist/index.js",
@@ -17,6 +17,7 @@
       "default": "./dist/index.js"
     }
   },
+  "sideEffects": false,
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
@@ -25,7 +26,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@whatitbroke/shared": "^1.0.1"
+    "@whatitbroke/shared": "^1.0.2"
   },
   "keywords": [
     "debugger",

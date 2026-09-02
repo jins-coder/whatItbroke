@@ -4,14 +4,18 @@
  */
 
 import React, { Component, ErrorInfo as ReactErrorInfo, ReactNode } from 'react';
-import { RootCauseReport } from '@whatitbroke/shared';
+import { RootCauseReport, formatReportCLI } from '@whatitbroke/shared';
+import { ErrorOverlay } from '@whatitbroke/core';
 import { ReactAdapter } from './adapter.js';
 
 export interface WhatItBrokeBoundaryProps {
   children: ReactNode;
-  fallback?: (report: RootCauseReport | null, error: Error) => ReactNode;
+  fallback?: (report: RootCauseReport | null, error: Error, reset: () => void) => ReactNode;
   onError?: (report: RootCauseReport, error: Error) => void;
   showOverlay?: boolean;
+  overlayPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  logToConsole?: boolean;
+  inlineFallback?: boolean;
 }
 
 interface WhatItBrokeBoundaryState {
@@ -37,15 +41,39 @@ export class WhatItBrokeBoundary extends Component<WhatItBrokeBoundaryProps, Wha
     return { hasError: true, error };
   }
 
+  public reset = (): void => {
+    this.state = { hasError: false, error: null, report: null };
+    try {
+      this.setState({ hasError: false, error: null, report: null });
+    } catch {
+      // Handled for unmounted test contexts
+    }
+  };
+
   override async componentDidCatch(error: Error, errorInfo: ReactErrorInfo): Promise<void> {
-    const report = await this.adapter.analyzeReactError(error, {
-      componentStack: errorInfo.componentStack || undefined,
-    });
+    try {
+      const report = await this.adapter.analyzeReactError(error, {
+        componentStack: errorInfo.componentStack || undefined,
+      });
 
-    this.setState({ report });
+      this.setState({ report });
 
-    if (this.props.onError) {
-      this.props.onError(report, error);
+      if (this.props.logToConsole !== false) {
+        console.error(formatReportCLI(report));
+      }
+
+      if (this.props.showOverlay !== false && typeof window !== 'undefined') {
+        if (this.props.overlayPosition) {
+          ErrorOverlay.init({ position: this.props.overlayPosition });
+        }
+        ErrorOverlay.addReport(report, error);
+      }
+
+      if (this.props.onError) {
+        this.props.onError(report, error);
+      }
+    } catch (analysisErr) {
+      console.error('WhatItBroke failed during React error analysis:', analysisErr);
     }
   }
 
@@ -55,10 +83,14 @@ export class WhatItBrokeBoundary extends Component<WhatItBrokeBoundaryProps, Wha
     }
 
     if (this.props.fallback && this.state.error) {
-      return this.props.fallback(this.state.report, this.state.error);
+      return this.props.fallback(this.state.report, this.state.error, this.reset);
     }
 
-    // Default actionable overlay
+    if (this.props.inlineFallback === false) {
+      return null;
+    }
+
+    // Default actionable overlay card with reset button
     const report = this.state.report;
     const err = this.state.error;
 
@@ -75,23 +107,40 @@ export class WhatItBrokeBoundary extends Component<WhatItBrokeBoundaryProps, Wha
           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-          <span
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span
+              style={{
+                background: '#ef4444',
+                color: 'white',
+                fontWeight: 800,
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                letterSpacing: '1px',
+              }}
+            >
+              WHAT IT BROKE
+            </span>
+            <h2 style={{ fontSize: '18px', margin: 0, color: '#f87171' }}>
+              {err?.name}: {err?.message}
+            </h2>
+          </div>
+          <button
+            onClick={this.reset}
             style={{
-              background: '#ef4444',
-              color: 'white',
-              fontWeight: 800,
-              padding: '4px 10px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              color: '#f8fafc',
+              padding: '6px 14px',
               borderRadius: '6px',
-              fontSize: '12px',
-              letterSpacing: '1px',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
             }}
           >
-            WHAT IT BROKE
-          </span>
-          <h2 style={{ fontSize: '18px', margin: 0, color: '#f87171' }}>
-            {err?.name}: {err?.message}
-          </h2>
+            ↻ Try Again
+          </button>
         </div>
 
         {report ? (

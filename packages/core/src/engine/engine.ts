@@ -4,8 +4,6 @@
  * root-cause analysis, and optional AI layer.
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import {
   DebugAdapter,
   DebugContext,
@@ -160,17 +158,15 @@ export class WhatItBrokeCore {
   /**
    * Helper to write report to disk
    */
-  public saveReportToFile(report: RootCauseReport, filePath: string): void {
-    const ext = path.extname(filePath).toLowerCase();
-    let content: string;
-    if (ext === '.html') {
-      content = this.exportReport(report, 'html');
-    } else if (ext === '.json') {
-      content = this.exportReport(report, 'json');
-    } else {
-      content = this.exportReport(report, 'cli');
+  public async saveReportToFile(report: RootCauseReport, filePath: string): Promise<void> {
+    if (typeof process === 'undefined' || !process.versions?.node) {
+      throw new Error('saveReportToFile is only supported in Node.js environments.');
     }
+    const fs = await import('node:fs');
+    const path = await import('node:path');
 
+    const ext = path.extname(filePath).toLowerCase();
+    const content = this.exportReport(report, ext === '.html' ? 'html' : ext === '.json' ? 'json' : 'cli');
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
