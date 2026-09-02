@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NodeAdapter } from '../../packages/node/dist/index.js';
 import { ReactAdapter, HooksDetector, WhatItBrokeBoundary, ReactErrorOverlay } from '../../packages/react/dist/index.js';
-import { VueAdapter, WhatItBrokeVue, VueErrorOverlay } from '../../packages/vue/dist/index.js';
+import { VueAdapter, WhatItBrokeVue, VueErrorOverlay, WhatItBrokeErrorBoundary } from '../../packages/vue/dist/index.js';
 import { AngularAdapter, DIAnalyzer, AngularErrorOverlay } from '../../packages/angular/dist/index.js';
 
 test('NodeAdapter - captures process runtime and environment context', () => {
@@ -160,9 +160,18 @@ test('VueErrorOverlay - initializes singleton and captures reports and warnings'
 
   VueErrorOverlay.addReport(mockReport);
   VueErrorOverlay.addWarning('Avoid mutating a prop directly');
+  VueErrorOverlay.addPerformance({
+    type: 'long_task',
+    title: 'UI Render Lag',
+    detail: 'Render took 62ms',
+    durationMs: 62,
+  });
 
   // Verify methods work without error
-  overlay.open();
+  overlay.open('performance');
+  overlay.open('warnings');
+  overlay.open('timeline');
+  overlay.open('system');
   overlay.close();
   overlay.clear();
 });
@@ -197,5 +206,33 @@ test('VueAdapter - infers component name from type.__file in <script setup>', ()
   const name = adapter.extractComponentName(setupInstance);
   assert.equal(name, 'UserProfileCard');
 });
+
+test('VueAdapter - discovers component names from internal proxy pointers ($?.type.__name, vnode)', () => {
+  const adapter = new VueAdapter();
+
+  // Proxy instance
+  const proxyInstance = {
+    $: {
+      type: { __name: 'HiringDashboard' },
+    },
+  };
+  assert.equal(adapter.extractComponentName(proxyInstance), 'HiringDashboard');
+
+  // File fallback via proxy
+  const proxyFileInstance = {
+    $: {
+      type: { __file: 'src/views/SettingsModal.vue' },
+    },
+  };
+  assert.equal(adapter.extractComponentName(proxyFileInstance), 'SettingsModal');
+});
+
+test('WhatItBrokeErrorBoundary - defined and exported cleanly for Vue 3', () => {
+  assert.ok(WhatItBrokeErrorBoundary);
+  assert.equal(WhatItBrokeErrorBoundary.name, 'WhatItBrokeErrorBoundary');
+  assert.ok(WhatItBrokeErrorBoundary.props);
+  assert.ok(WhatItBrokeErrorBoundary.setup);
+});
+
 
 

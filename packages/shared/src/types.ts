@@ -101,7 +101,10 @@ export type TimelineEventType =
   | 'hook_call'
   | 'custom_breadcrumb'
   | 'undefined_value_detected'
-  | 'exception';
+  | 'exception'
+  | 'performance_issue'
+  | 'warning_log'
+  | 'info_log';
 
 export interface TimelineEvent {
   id: string;

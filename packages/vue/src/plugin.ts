@@ -5,6 +5,7 @@
 
 import type { App, ComponentPublicInstance } from 'vue';
 import { RootCauseReport, formatReportCLI } from '@whatitbroke/shared';
+import { getGlobalTimeline } from '@whatitbroke/core';
 import { VueAdapter } from './adapter.js';
 import { VueErrorOverlay } from './overlay.js';
 
@@ -21,6 +22,10 @@ export interface WhatItBrokeVueOptions {
   overlayPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
   /** Automatically open diagnostic modal when an error occurs (default: true) */
   autoOpenOnCrash?: boolean;
+  /** Automatically intercept unhandled rejections and window exceptions (default: true) */
+  autoCaptureGlobalErrors?: boolean;
+  /** Automatically monitor browser main-thread long tasks (default: true) */
+  autoCapturePerformance?: boolean;
 }
 
 export const WhatItBrokeVue = {
@@ -34,8 +39,15 @@ export const WhatItBrokeVue = {
       VueErrorOverlay.init({
         position: options?.overlayPosition,
         autoOpenOnCrash: options?.autoOpenOnCrash !== false,
+        autoCaptureGlobalErrors: options?.autoCaptureGlobalErrors !== false,
+        autoCapturePerformance: options?.autoCapturePerformance !== false,
       });
     }
+
+    // Record initialization timeline event
+    getGlobalTimeline().record('info_log', 'Vue 3 Application Initialized', {
+      details: { vueVersion: app.version || '3.x' },
+    });
 
     // 1. Global Vue Error Handler
     app.config.errorHandler = async (err, instance, info) => {
@@ -75,20 +87,32 @@ export const WhatItBrokeVue = {
       }
     };
 
-    // 2. Reactivity & Vue Warning Hook (captures Vue warnings before fatal errors)
-    if (options?.captureReactivityLoss) {
-      app.config.warnHandler = (msg, instance, trace) => {
-        // Intercept Vue reactivity warnings (e.g. read-only mutation, missing refs)
-        if (msg.includes('target is readonly') || msg.includes('Set operation on key failed') || msg.includes('Avoid mutating a prop')) {
-          console.warn(`\x1b[33m\x1b[1m⚠️ WHAT IT BROKE (Reactivity Warning)\x1b[0m\n${msg}\n${trace}`);
-          if (enableOverlay) {
-            VueErrorOverlay.addWarning(msg, trace);
-          }
-        }
-        if (typeof prevWarnHandler === 'function') {
-          prevWarnHandler(msg, instance, trace);
-        }
-      };
-    }
+    // 2. Intercept All Vue Warnings (reactivity, props, template mismatches)
+    app.config.warnHandler = (msg, instance, trace) => {
+      const isReactivity =
+        msg.includes('target is readonly') ||
+        msg.includes('Set operation on key failed') ||
+        msg.includes('Avoid mutating a prop') ||
+        msg.includes('toRefs') ||
+        msg.includes('toRef');
+
+      if (isReactivity) {
+        console.warn(`\x1b[33m\x1b[1m⚠️ WHAT IT BROKE (Reactivity Warning)\x1b[0m\n${msg}\n${trace || ''}`);
+      }
+
+      const formattedMsg = isReactivity ? `[Reactivity Loss] ${msg}` : msg;
+
+      if (enableOverlay) {
+        VueErrorOverlay.addWarning(formattedMsg, trace);
+      }
+
+      getGlobalTimeline().record('warning_log', formattedMsg, {
+        details: { component: adapter.extractComponentName(instance) },
+      });
+
+      if (typeof prevWarnHandler === 'function') {
+        prevWarnHandler(msg, instance, trace);
+      }
+    };
   },
 };

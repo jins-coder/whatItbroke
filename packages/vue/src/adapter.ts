@@ -58,22 +58,41 @@ export class VueAdapter implements DebugAdapter {
 
   public extractComponentName(instance: any): string {
     if (!instance) return 'VueComponent';
-    const rawName =
-      instance.$options?.name ||
-      instance.type?.name ||
+
+    // 1. Check explicit component names across Vue 3 component instance structures
+    const directName =
       instance.type?.__name ||
+      instance.type?.name ||
+      instance.$options?.name ||
+      instance.$?.type?.__name ||
+      instance.$?.type?.name ||
+      instance.vnode?.type?.__name ||
+      instance.vnode?.type?.name ||
       instance.$vnode?.componentOptions?.tag;
 
-    if (rawName && rawName !== 'Anonymous') return rawName;
+    if (directName && directName !== 'Anonymous' && directName !== 'AnonymousComponent') {
+      return directName;
+    }
 
-    // In Vue 3 <script setup>, component name often derives from file path (__file)
-    const filePath = instance.type?.__file;
+    // 2. Discover component name from file paths (__file)
+    const filePath =
+      instance.type?.__file ||
+      instance.$?.type?.__file ||
+      instance.vnode?.type?.__file ||
+      instance.$options?.__file;
+
     if (typeof filePath === 'string') {
       const base = filePath.split(/[/\\]/).pop()?.replace(/\.\w+$/, '');
       if (base) return base;
     }
 
-    return 'AnonymousVueComponent';
+    // 3. Check subTree or subComponent tag
+    const tag = instance.subTree?.type?.__name || instance.vnode?.tag;
+    if (tag && typeof tag === 'string' && !tag.startsWith('vue:')) {
+      return tag;
+    }
+
+    return 'AnonymousComponent';
   }
 
   public extractComponentStack(instance: any): string[] {
@@ -86,7 +105,11 @@ export class VueAdapter implements DebugAdapter {
       seen.add(current);
       const name = this.extractComponentName(current);
       stack.unshift(name);
-      current = current.parent || current.$parent;
+      current =
+        current.parent ||
+        current.$parent ||
+        current.$?.parent ||
+        current.vnode?.component?.parent;
     }
 
     return stack.length > 0 ? stack : ['App', this.extractComponentName(instance)];

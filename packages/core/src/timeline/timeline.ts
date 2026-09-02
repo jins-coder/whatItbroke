@@ -8,9 +8,17 @@ import { TimelineEvent, TimelineEventType } from '@whatitbroke/shared';
 export class TimelineRecorder {
   private events: TimelineEvent[] = [];
   private maxEvents: number;
+  private listeners: ((event: TimelineEvent) => void)[] = [];
 
   constructor(maxEvents = 100) {
     this.maxEvents = maxEvents;
+  }
+
+  public onEvent(listener: (event: TimelineEvent) => void): () => void {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter((l) => l !== listener);
+    };
   }
 
   public record(type: TimelineEventType, summary: string, options?: Partial<TimelineEvent>): TimelineEvent {
@@ -19,7 +27,7 @@ export class TimelineRecorder {
       timestamp: Date.now(),
       type,
       summary,
-      status: options?.status || (type === 'exception' ? 'error' : type === 'undefined_value_detected' ? 'warning' : 'info'),
+      status: options?.status || (type === 'exception' ? 'error' : type === 'undefined_value_detected' || type === 'performance_issue' ? 'warning' : 'info'),
       ...options,
     };
 
@@ -27,6 +35,12 @@ export class TimelineRecorder {
 
     if (this.events.length > this.maxEvents) {
       this.events.shift(); // keep ring buffer bounded
+    }
+
+    for (const listener of this.listeners) {
+      try {
+        listener(event);
+      } catch {}
     }
 
     return event;
@@ -92,6 +106,13 @@ export class TimelineRecorder {
 
   public recordBreadcrumb(message: string, details?: Record<string, unknown>): TimelineEvent {
     return this.record('custom_breadcrumb', message, { details });
+  }
+
+  public recordPerformance(metric: string, durationMs: number, details?: Record<string, unknown>): TimelineEvent {
+    return this.record('performance_issue', `Performance issue: ${metric} took ${durationMs}ms`, {
+      details: { metric, durationMs, ...details },
+      status: durationMs > 100 ? 'error' : 'warning',
+    });
   }
 
   public getEvents(): TimelineEvent[] {
