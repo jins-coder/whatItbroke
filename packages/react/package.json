@@ -1,12 +1,14 @@
 {
   "name": "@whatitbroke/react",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "React adapter, Error Boundary, hook rule analyzer, and component tree inspector for WhatItBroke",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -23,8 +25,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@whatitbroke/shared": "1.0.0",
-    "@whatitbroke/core": "1.0.0"
+    "@whatitbroke/shared": "^1.0.1",
+    "@whatitbroke/core": "^1.0.1"
   },
   "peerDependencies": {
     "react": ">=18.0.0"
@@ -37,7 +39,13 @@
   "devDependencies": {
     "@types/react": "^19.0.10"
   },
-  "keywords": ["debugger", "react", "error-boundary", "hooks", "root-cause"],
+  "keywords": [
+    "debugger",
+    "react",
+    "error-boundary",
+    "hooks",
+    "root-cause"
+  ],
   "author": "WhatItBroke Team",
   "license": "MIT",
   "engines": {

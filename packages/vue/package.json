@@ -1,12 +1,14 @@
 {
   "name": "@whatitbroke/vue",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Vue 3 adapter, error handler plugin, and reactive state debugger for WhatItBroke",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -23,8 +25,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@whatitbroke/shared": "1.0.0",
-    "@whatitbroke/core": "1.0.0"
+    "@whatitbroke/shared": "^1.0.1",
+    "@whatitbroke/core": "^1.0.1"
   },
   "peerDependencies": {
     "vue": "^3.0.0"
@@ -34,7 +36,13 @@
       "optional": true
     }
   },
-  "keywords": ["debugger", "vue", "vue3", "reactivity", "root-cause"],
+  "keywords": [
+    "debugger",
+    "vue",
+    "vue3",
+    "reactivity",
+    "root-cause"
+  ],
   "author": "WhatItBroke Team",
   "license": "MIT",
   "engines": {

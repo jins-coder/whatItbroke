@@ -1,12 +1,14 @@
 {
   "name": "@whatitbroke/node",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Node.js debug adapter, async context tracker, and HTTP/DB event collectors",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -23,10 +25,15 @@
     "access": "public"
   },
   "dependencies": {
-    "@whatitbroke/shared": "1.0.0",
-    "@whatitbroke/core": "1.0.0"
+    "@whatitbroke/shared": "^1.0.1",
+    "@whatitbroke/core": "^1.0.1"
   },
-  "keywords": ["debugger", "node", "root-cause", "uncaughtException"],
+  "keywords": [
+    "debugger",
+    "node",
+    "root-cause",
+    "uncaughtException"
+  ],
   "author": "WhatItBroke Team",
   "license": "MIT",
   "engines": {

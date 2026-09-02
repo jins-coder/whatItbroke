@@ -1,12 +1,14 @@
 {
   "name": "@whatitbroke/shared",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Shared types, redaction, and utilities for WhatItBroke",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -22,7 +24,10 @@
   "publishConfig": {
     "access": "public"
   },
-  "keywords": ["debugger", "shared"],
+  "keywords": [
+    "debugger",
+    "shared"
+  ],
   "author": "WhatItBroke Team",
   "license": "MIT",
   "engines": {

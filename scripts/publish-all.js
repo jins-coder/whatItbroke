@@ -51,6 +51,15 @@ async function main() {
 
   for (const pkgRel of PACKAGES) {
     const pkgDir = path.resolve(pkgRel);
+
+    // Ensure package has README and LICENSE
+    if (!fs.existsSync(path.join(pkgDir, 'README.md')) && fs.existsSync('README.md')) {
+      fs.copyFileSync('README.md', path.join(pkgDir, 'README.md'));
+    }
+    if (!fs.existsSync(path.join(pkgDir, 'LICENSE')) && fs.existsSync('LICENSE')) {
+      fs.copyFileSync('LICENSE', path.join(pkgDir, 'LICENSE'));
+    }
+
     const pkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf-8'));
     const pkgName = pkgJson.name;
     const version = pkgJson.version;
