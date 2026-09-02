@@ -1,0 +1,37 @@
+{
+  "name": "whatitbroke-monorepo",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Universal Application Debugger and Root-Cause Analysis Ecosystem",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "node --test tests/**/*.test.js",
+    "typecheck": "tsc -b",
+    "pack:all": "node scripts/pack-all.js",
+    "publish:all": "node scripts/publish-all.js",
+    "clean": "node -e \"const fs = require('fs'); ['packages', 'examples'].forEach(dir => fs.readdirSync(dir).forEach(pkg => { const p = `${dir}/${pkg}/dist`; if (fs.existsSync(p)) fs.rmSync(p, {recursive: true, force: true}); }));\""
+  },
+  "keywords": [
+    "debugger",
+    "root-cause-analysis",
+    "stacktrace",
+    "sourcemaps",
+    "node",
+    "react",
+    "vue",
+    "angular"
+  ],
+  "author": "WhatItBroke Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "@types/react": "^19.2.18",
+    "react": "^19.2.8",
+    "typescript": "^5.7.3"
+  }
+}

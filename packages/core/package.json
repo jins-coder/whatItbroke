@@ -1,0 +1,34 @@
+{
+  "name": "@whatitbroke/core",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Core debug engine, stack parser, sourcemap resolver, timeline, and root-cause analyzer",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@whatitbroke/shared": "1.0.0"
+  },
+  "keywords": ["debugger", "root-cause", "stacktrace", "sourcemap", "timeline"],
+  "author": "WhatItBroke Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

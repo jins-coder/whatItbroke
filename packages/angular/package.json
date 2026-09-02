@@ -1,0 +1,43 @@
+{
+  "name": "@whatitbroke/angular",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Angular adapter, ErrorHandler, DI analyzer, and RxJS tracker for WhatItBroke",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@whatitbroke/shared": "1.0.0",
+    "@whatitbroke/core": "1.0.0"
+  },
+  "peerDependencies": {
+    "@angular/core": ">=15.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@angular/core": {
+      "optional": true
+    }
+  },
+  "keywords": ["debugger", "angular", "di", "rxjs", "root-cause"],
+  "author": "WhatItBroke Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
