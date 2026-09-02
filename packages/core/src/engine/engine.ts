@@ -159,11 +159,14 @@ export class WhatItBrokeCore {
    * Helper to write report to disk
    */
   public async saveReportToFile(report: RootCauseReport, filePath: string): Promise<void> {
-    if (typeof process === 'undefined' || !process.versions?.node) {
-      throw new Error('saveReportToFile is only supported in Node.js environments.');
+    if (typeof window !== 'undefined' || typeof process === 'undefined' || !process.versions?.node) {
+      console.warn('[WhatItBroke] saveReportToFile is not available in browser environments.');
+      return;
     }
-    const fs = await import('node:fs');
-    const path = await import('node:path');
+    const fsMod = 'node:fs';
+    const pathMod = 'node:path';
+    const fs = await import(/* @vite-ignore */ fsMod);
+    const path = await import(/* @vite-ignore */ pathMod);
 
     const ext = path.extname(filePath).toLowerCase();
     const content = this.exportReport(report, ext === '.html' ? 'html' : ext === '.json' ? 'json' : 'cli');

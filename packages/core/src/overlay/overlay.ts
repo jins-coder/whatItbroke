@@ -5,6 +5,7 @@
  * Encapsulated inside Shadow DOM with :host { all: initial } for strict, zero-bleed isolation:
  * - Never distorts host application CSS or layout
  * - Immune to host framework styles (Tailwind, Bootstrap, resets)
+ * - Hardware-accelerated transitions with zero layout shift or flicker
  */
 
 import type { RootCauseReport, TimelineEvent } from '@whatitbroke/shared';
@@ -15,6 +16,9 @@ export interface OverlayOptions {
   autoOpenOnCrash?: boolean;
   autoCaptureGlobalErrors?: boolean;
   autoCapturePerformance?: boolean;
+  resetOnRefresh?: boolean;
+  /** Minimum blocking duration (in ms) to register as a Long Task (default: 100) */
+  minLongTaskDurationMs?: number;
 }
 
 export interface CapturedWarning {
@@ -40,6 +44,19 @@ export class ErrorOverlay {
   private hostEl: HTMLElement | null = null;
   private shadow: ShadowRoot | null = null;
 
+  // Cached DOM element references
+  private fabEl: HTMLElement | null = null;
+  private badgeEl: HTMLElement | null = null;
+  private fabIconEl: SVGElement | null = null;
+  private backdropEl: HTMLElement | null = null;
+  private modalEl: HTMLElement | null = null;
+  private bodyEl: HTMLElement | null = null;
+  private tabsContainerEl: HTMLElement | null = null;
+  private paginationContainerEl: HTMLElement | null = null;
+  private pageIndicatorEl: HTMLElement | null = null;
+  private prevBtn: HTMLButtonElement | null = null;
+  private nextBtn: HTMLButtonElement | null = null;
+
   private reports: RootCauseReport[] = [];
   private warnings: CapturedWarning[] = [];
   private performanceIssues: PerformanceIssue[] = [];
@@ -51,6 +68,7 @@ export class ErrorOverlay {
   private options: OverlayOptions;
 
   private perfObserver: PerformanceObserver | null = null;
+  private hmrCooldownUntil = 0;
 
   private constructor(options?: OverlayOptions) {
     this.options = {
@@ -58,6 +76,8 @@ export class ErrorOverlay {
       autoOpenOnCrash: options?.autoOpenOnCrash !== false,
       autoCaptureGlobalErrors: options?.autoCaptureGlobalErrors !== false,
       autoCapturePerformance: options?.autoCapturePerformance !== false,
+      resetOnRefresh: options?.resetOnRefresh !== false,
+      minLongTaskDurationMs: options?.minLongTaskDurationMs ?? 100,
     };
     this.mount();
     this.setupAutoCapture();
@@ -66,6 +86,15 @@ export class ErrorOverlay {
   public static init(options?: OverlayOptions): ErrorOverlay {
     if (!ErrorOverlay.instance) {
       ErrorOverlay.instance = new ErrorOverlay(options);
+    } else {
+      if (options) {
+        ErrorOverlay.instance.options = { ...ErrorOverlay.instance.options, ...options };
+      }
+      // On re-initialization (e.g. app refresh, Vite HMR, component re-mount):
+      // Always reset and close any open popup so it never flickers or stays stuck open
+      if (ErrorOverlay.instance.options.resetOnRefresh !== false) {
+        ErrorOverlay.instance.reset();
+      }
     }
     return ErrorOverlay.instance;
   }
@@ -86,13 +115,37 @@ export class ErrorOverlay {
     (ErrorOverlay.getInstance() || ErrorOverlay.init()).pushPerformance(issue);
   }
 
+  public static open(tab?: OverlayTab): void {
+    (ErrorOverlay.getInstance() || ErrorOverlay.init()).open(tab);
+  }
+
+  public static close(): void {
+    ErrorOverlay.getInstance()?.close();
+  }
+
+  public static toggle(): void {
+    (ErrorOverlay.getInstance() || ErrorOverlay.init()).toggle();
+  }
+
+  public static reset(clearData: boolean = true): void {
+    ErrorOverlay.getInstance()?.reset(clearData);
+  }
+
+  public static clear(): void {
+    ErrorOverlay.getInstance()?.clear();
+  }
+
   public pushReport(report: RootCauseReport): void {
     this.reports.unshift(report);
     this.currentReportIndex = 0;
     this.activeTab = 'errors';
-    this.render();
+    this.updateBadge();
+    this.updateHeader();
+
     if (this.options.autoOpenOnCrash) {
-      this.open();
+      this.open('errors');
+    } else if (this.isOpen) {
+      this.renderActiveTab();
     }
   }
 
@@ -106,7 +159,11 @@ export class ErrorOverlay {
     if (this.reports.length === 0 && !this.isOpen) {
       this.activeTab = 'warnings';
     }
-    this.render();
+    this.updateBadge();
+    this.updateHeader();
+    if (this.isOpen && this.activeTab === 'warnings') {
+      this.renderActiveTab();
+    }
   }
 
   public pushPerformance(issue: Omit<PerformanceIssue, 'id' | 'timestamp'>): void {
@@ -116,7 +173,11 @@ export class ErrorOverlay {
       ...issue,
     });
     getGlobalTimeline().recordPerformance(issue.title, issue.durationMs, { detail: issue.detail });
-    this.render();
+    this.updateBadge();
+    this.updateHeader();
+    if (this.isOpen && this.activeTab === 'performance') {
+      this.renderActiveTab();
+    }
   }
 
   public open(tab?: OverlayTab): void {
@@ -130,16 +191,46 @@ export class ErrorOverlay {
     } else {
       this.activeTab = 'errors';
     }
-    this.render();
+
+    if (this.backdropEl) {
+      this.backdropEl.classList.add('wib-open');
+    }
+
+    this.updateTabStyles();
+    this.updateBadge();
+    this.updateHeader();
+    this.renderActiveTab();
   }
 
   public close(): void {
     this.isOpen = false;
-    this.render();
+    if (this.backdropEl) {
+      this.backdropEl.classList.remove('wib-open');
+    }
   }
 
   public toggle(): void {
     this.isOpen ? this.close() : this.open();
+  }
+
+  public reset(clearData: boolean = true): void {
+    this.close();
+    this.activeTab = 'errors';
+    this.currentReportIndex = 0;
+    this.hmrCooldownUntil = Date.now() + 1500; // 1.5s cooldown after reload / HMR to prevent noise
+    if (clearData) {
+      this.reports = [];
+      this.warnings = [];
+      this.performanceIssues = [];
+      this.timelineEvents = [];
+      getGlobalTimeline().clear();
+    }
+    this.updateTabStyles();
+    this.updateBadge();
+    this.updateHeader();
+    if (this.bodyEl) {
+      this.renderActiveTab();
+    }
   }
 
   public clear(): void {
@@ -149,7 +240,17 @@ export class ErrorOverlay {
     getGlobalTimeline().clear();
     this.timelineEvents = [];
     this.currentReportIndex = 0;
-    this.render();
+    this.updateBadge();
+    this.updateHeader();
+    this.renderActiveTab();
+  }
+
+  public switchTab(tab: OverlayTab): void {
+    if (this.activeTab === tab) return;
+    this.activeTab = tab;
+    this.updateTabStyles();
+    this.updateHeader();
+    this.renderActiveTab();
   }
 
   private setupAutoCapture(): void {
@@ -158,24 +259,29 @@ export class ErrorOverlay {
     // 1. Subscribe to timeline events
     const timeline = getGlobalTimeline();
     this.timelineEvents = timeline.getEvents();
-    timeline.onEvent((event) => {
+    timeline.onEvent(() => {
       this.timelineEvents = timeline.getEvents();
+      this.updateHeader();
       if (this.isOpen && this.activeTab === 'timeline') {
-        this.render();
+        this.renderActiveTab();
       }
     });
 
-    // 2. Performance Observer for Long Tasks (>50ms blocking main thread)
+    // 2. Performance Observer for Long Tasks
     if (this.options.autoCapturePerformance && typeof PerformanceObserver !== 'undefined') {
       try {
+        const threshold = this.options.minLongTaskDurationMs ?? 100;
         this.perfObserver = new PerformanceObserver((list) => {
+          // Dev-mode noise reduction: ignore long tasks during Vite HMR reloads
+          if (Date.now() < this.hmrCooldownUntil) return;
+
           for (const entry of list.getEntries()) {
             const duration = Math.round(entry.duration);
-            if (duration >= 50) {
+            if (duration >= threshold) {
               this.pushPerformance({
                 type: 'long_task',
                 title: 'Main Thread Long Task',
-                detail: `Browser execution blocked for ${duration}ms (frame budget: 16ms)`,
+                detail: `Browser execution blocked for ${duration}ms (frame budget: 16ms, threshold: ${threshold}ms)`,
                 durationMs: duration,
               });
             }
@@ -202,7 +308,7 @@ export class ErrorOverlay {
     }
 
     // 4. Real-Time Live Network (fetch) & Latency Tracking
-    if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+    if (typeof window.fetch === 'function') {
       const origFetch = window.fetch;
       window.fetch = async (...args) => {
         const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request)?.url || 'unknown';
@@ -241,14 +347,20 @@ export class ErrorOverlay {
     }
 
     // 5. Real-Time SPA Navigation Tracking
-    if (typeof window !== 'undefined') {
-      window.addEventListener('popstate', () => {
-        getGlobalTimeline().record('custom_breadcrumb', `Navigation: ${location.pathname}${location.search}`);
-      });
-      window.addEventListener('hashchange', () => {
-        getGlobalTimeline().record('custom_breadcrumb', `Route Changed: ${location.hash}`);
-      });
-    }
+    window.addEventListener('popstate', () => {
+      getGlobalTimeline().record('custom_breadcrumb', `Navigation: ${location.pathname}${location.search}`);
+    });
+    window.addEventListener('hashchange', () => {
+      getGlobalTimeline().record('custom_breadcrumb', `Route Changed: ${location.hash}`);
+    });
+
+    // 6. Page Unload / Refresh listeners to reset & close popup cleanly
+    window.addEventListener('beforeunload', () => {
+      this.close();
+    });
+    window.addEventListener('pagehide', () => {
+      this.close();
+    });
   }
 
   private mount(): void {
@@ -262,25 +374,6 @@ export class ErrorOverlay {
     document.body.appendChild(this.hostEl);
 
     this.shadow = this.hostEl.attachShadow({ mode: 'open' });
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.isOpen) {
-        this.close();
-      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
-        e.preventDefault();
-        this.toggle();
-      }
-    });
-
-    this.render();
-  }
-
-  private render(): void {
-    if (!this.shadow) return;
-
-    const errCount = this.reports.length;
-    const warnCount = this.warnings.length;
-    const perfCount = this.performanceIssues.length;
-    const timelineCount = this.timelineEvents.length;
 
     const pos = this.options.position || 'bottom-right';
     const posRules: Record<string, string> = {
@@ -290,21 +383,6 @@ export class ErrorOverlay {
       'top-left': 'top:24px;left:24px;',
     };
 
-    // Badge styling logic
-    let badgeColor = '#10b981';
-    let badgeBorder = 'rgba(255,255,255,0.15)';
-    let badgeCount = '0';
-
-    if (errCount > 0) {
-      badgeColor = '#f43f5e';
-      badgeBorder = '#f43f5e';
-      badgeCount = `${errCount}`;
-    } else if (warnCount > 0 || perfCount > 0) {
-      badgeColor = '#f59e0b';
-      badgeBorder = 'rgba(245,158,11,0.5)';
-      badgeCount = `${warnCount + perfCount}`;
-    }
-
     this.shadow.innerHTML = `
       <style>
         :host { all: initial; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color-scheme: dark; }
@@ -313,55 +391,76 @@ export class ErrorOverlay {
           position: fixed; ${posRules[pos] || posRules['bottom-right']} z-index: 2147483647;
           width: 48px; height: 48px; border-radius: 14px;
           display: flex; align-items: center; justify-content: center;
-          background: rgba(15, 23, 42, 0.94); border: 1px solid ${badgeBorder};
+          background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(255,255,255,0.15);
           cursor: pointer; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-          box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 16px ${errCount > 0 ? 'rgba(244,63,94,0.45)' : warnCount > 0 || perfCount > 0 ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.2)'};
+          box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 16px rgba(16,185,129,0.2);
           transition: all 0.25s cubic-bezier(0.16,1,0.3,1); user-select: none;
         }
         .wib-fab:hover { transform: translateY(-3px) scale(1.06); background: rgba(30,41,59,0.98); }
         .wib-icon {
-          width: 24px; height: 24px; fill: none; stroke: ${errCount > 0 ? '#f43f5e' : warnCount > 0 || perfCount > 0 ? '#f59e0b' : '#38bdf8'};
+          width: 24px; height: 24px; fill: none; stroke: #10b981;
           stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+          transition: stroke 0.2s ease;
         }
         .wib-badge {
           position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; padding: 0 5px;
-          border-radius: 9999px; background: ${errCount > 0 ? '#f43f5e' : warnCount > 0 || perfCount > 0 ? '#f59e0b' : '#10b981'};
-          color: ${warnCount > 0 && errCount === 0 ? '#000' : '#fff'}; font-size: 10px; font-weight: 800; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          border-radius: 9999px; background: #10b981;
+          color: #fff; font-size: 10px; font-weight: 800; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           display: flex; align-items: center; justify-content: center; border: 2px solid #0b0f19;
           box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-          ${errCount > 0 ? 'animation: wib-pulse 1.8s infinite;' : ''}
+          transition: background-color 0.2s ease, transform 0.2s ease;
         }
-        @keyframes wib-pulse { 0%, 100% { transform: scale(0.95); opacity: 0.85; } 50% { transform: scale(1.15); opacity: 1; } }
+        .wib-pulse { animation: wib-pulse-kf 1.8s infinite; }
+        @keyframes wib-pulse-kf { 0%, 100% { transform: scale(0.95); opacity: 0.85; } 50% { transform: scale(1.15); opacity: 1; } }
+
+        /* Smooth Backdrop Transition (Zero Flicker) */
         .wib-backdrop {
-          position: fixed; inset: 0; background: rgba(3, 7, 18, 0.8); backdrop-filter: blur(8px);
+          position: fixed; inset: 0; background: rgba(3, 7, 18, 0.78); backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px); z-index: 2147483646; display: flex;
-          align-items: center; justify-content: center; padding: 20px; animation: wib-fade 0.2s ease-out;
+          align-items: center; justify-content: center; padding: 20px;
+          opacity: 0; visibility: hidden; pointer-events: none;
+          transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.22s ease;
         }
-        @keyframes wib-fade { from { opacity: 0; } to { opacity: 1; } }
+        .wib-backdrop.wib-open {
+          opacity: 1; visibility: visible; pointer-events: auto;
+        }
+
+        /* Smooth Modal Transition */
         .wib-modal {
           width: 100%; max-width: 900px; max-height: 88vh; background: #0b0f19;
           border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; display: flex; flex-direction: column;
-          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.85); overflow: hidden; animation: wib-slide 0.2s ease-out;
+          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.85); overflow: hidden;
+          opacity: 0; transform: translateY(14px) scale(0.985);
+          transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        @keyframes wib-slide { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .wib-backdrop.wib-open .wib-modal {
+          opacity: 1; transform: translateY(0) scale(1);
+        }
+
         .wib-hdr {
           display: flex; align-items: center; justify-content: space-between; padding: 12px 18px;
           background: #111827; border-bottom: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap; gap: 10px;
         }
-        .wib-tabs { display: flex; align-items: center; gap: 4px; overflow-x: auto; }
+        .wib-tabs { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 2px 0; }
         .wib-tab {
-          background: transparent; border: none; color: #94a3b8; font-size: 12px; font-weight: 600;
-          padding: 6px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;
-          transition: all 0.15s; white-space: nowrap;
+          background: transparent; border: 1px solid transparent; color: #94a3b8; font-size: 12px; font-weight: 600;
+          padding: 6px 13px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+          transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+          white-space: nowrap; user-select: none; outline: none;
         }
         .wib-tab:hover { background: rgba(255,255,255,0.06); color: #f8fafc; }
-        .wib-tab.active { background: rgba(255,255,255,0.12); color: #fff; border-bottom: 2px solid #38bdf8; }
+        .wib-tab.active {
+          background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.3); color: #38bdf8;
+          box-shadow: 0 0 12px rgba(56, 189, 248, 0.12);
+        }
         .wib-tab-badge {
           font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 9999px; background: rgba(255,255,255,0.1); color: #cbd5e1;
+          transition: background-color 0.18s ease, color 0.18s ease;
         }
         .wib-tab.active .wib-tab-badge { background: #38bdf8; color: #0b0f19; }
         .wib-tab-badge.err { background: #f43f5e; color: #fff; }
         .wib-tab-badge.warn { background: #f59e0b; color: #000; }
+
         .wib-btn {
           background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #cbd5e1;
           padding: 5px 11px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s;
@@ -371,9 +470,23 @@ export class ErrorOverlay {
         .wib-close {
           background: transparent; border: none; color: #94a3b8; font-size: 18px; cursor: pointer;
           width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+          transition: background-color 0.15s, color 0.15s;
         }
         .wib-close:hover { background: rgba(244,63,94,0.15); color: #f43f5e; }
+
         .wib-body { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+
+        /* Smooth Tab Pane Switch Animation */
+        .wib-tab-pane {
+          display: flex; flex-direction: column; gap: 14px;
+          animation: wib-tab-slide-fade 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          will-change: opacity, transform;
+        }
+        @keyframes wib-tab-slide-fade {
+          from { opacity: 0; transform: translateY(5px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
         .wib-card-err {
           background: linear-gradient(180deg, rgba(244,63,94,0.1), rgba(244,63,94,0.02));
           border: 1px solid rgba(244,63,94,0.25); border-radius: 10px; padding: 14px 16px;
@@ -408,58 +521,172 @@ export class ErrorOverlay {
       </style>
 
       <button class="wib-fab" id="wib-fab" title="WhatItBroke Diagnostics (Click to Inspect &bull; Ctrl+Shift+D)">
-        <svg class="wib-icon" viewBox="0 0 24 24">
+        <svg class="wib-icon" id="wib-icon" viewBox="0 0 24 24">
           <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
         </svg>
-        <span class="wib-badge">${badgeCount}</span>
+        <span class="wib-badge" id="wib-badge">0</span>
       </button>
 
-      ${this.isOpen ? `
-        <div class="wib-backdrop" id="wib-backdrop">
-          <div class="wib-modal">
-            <div class="wib-hdr">
-              <div class="wib-tabs">
-                <button class="wib-tab ${this.activeTab === 'errors' ? 'active' : ''}" data-tab="errors">
-                  <span>🔴 Errors</span>
-                  <span class="wib-tab-badge ${errCount > 0 ? 'err' : ''}">${errCount}</span>
-                </button>
-                <button class="wib-tab ${this.activeTab === 'warnings' ? 'active' : ''}" data-tab="warnings">
-                  <span>⚠️ Warnings</span>
-                  <span class="wib-tab-badge ${warnCount > 0 ? 'warn' : ''}">${warnCount}</span>
-                </button>
-                <button class="wib-tab ${this.activeTab === 'performance' ? 'active' : ''}" data-tab="performance">
-                  <span>⚡ Performance</span>
-                  <span class="wib-tab-badge">${perfCount}</span>
-                </button>
-                <button class="wib-tab ${this.activeTab === 'timeline' ? 'active' : ''}" data-tab="timeline">
-                  <span>⏱ Timeline</span>
-                  <span class="wib-tab-badge">${timelineCount}</span>
-                </button>
-                <button class="wib-tab ${this.activeTab === 'system' ? 'active' : ''}" data-tab="system">
-                  <span>ℹ System</span>
-                </button>
-              </div>
-
-              <div style="display:flex;align-items:center;gap:8px;">
-                ${this.activeTab === 'errors' && errCount > 1 ? `
-                  <button class="wib-btn" id="wib-prev" ${this.currentReportIndex === 0 ? 'disabled' : ''}>←</button>
-                  <span style="font-size:11px;color:#94a3b8;">${this.currentReportIndex + 1}/${errCount}</span>
-                  <button class="wib-btn" id="wib-next" ${this.currentReportIndex >= errCount - 1 ? 'disabled' : ''}>→</button>
-                ` : ''}
-                <button class="wib-btn" id="wib-clear" title="Clear recorded issues">Clear</button>
-                <button class="wib-close" id="wib-close" title="Close (Esc)">✕</button>
-              </div>
+      <div class="wib-backdrop" id="wib-backdrop">
+        <div class="wib-modal" id="wib-modal">
+          <div class="wib-hdr">
+            <div class="wib-tabs" id="wib-tabs">
+              <button class="wib-tab active" data-tab="errors">
+                <span>🔴 Errors</span>
+                <span class="wib-tab-badge" id="wib-tab-badge-errors">0</span>
+              </button>
+              <button class="wib-tab" data-tab="warnings">
+                <span>⚠️ Warnings</span>
+                <span class="wib-tab-badge" id="wib-tab-badge-warnings">0</span>
+              </button>
+              <button class="wib-tab" data-tab="performance">
+                <span>⚡ Performance</span>
+                <span class="wib-tab-badge" id="wib-tab-badge-perf">0</span>
+              </button>
+              <button class="wib-tab" data-tab="timeline">
+                <span>⏱ Timeline</span>
+                <span class="wib-tab-badge" id="wib-tab-badge-timeline">0</span>
+              </button>
+              <button class="wib-tab" data-tab="system">
+                <span>ℹ System</span>
+              </button>
             </div>
 
-            <div class="wib-body">
-              ${this.renderActiveTabContent()}
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div id="wib-err-pagination" style="display:none;align-items:center;gap:6px;">
+                <button class="wib-btn" id="wib-prev">←</button>
+                <span id="wib-page-indicator" style="font-size:11px;color:#94a3b8;">1/1</span>
+                <button class="wib-btn" id="wib-next">→</button>
+              </div>
+              <button class="wib-btn" id="wib-clear" title="Clear recorded issues">Clear</button>
+              <button class="wib-close" id="wib-close" title="Close (Esc)">✕</button>
             </div>
           </div>
+
+          <div class="wib-body" id="wib-body"></div>
         </div>
-      ` : ''}
+      </div>
     `;
 
+    // Cache element references
+    this.fabEl = this.shadow.getElementById('wib-fab');
+    this.badgeEl = this.shadow.getElementById('wib-badge');
+    this.fabIconEl = this.shadow.getElementById('wib-icon') as unknown as SVGElement;
+    this.backdropEl = this.shadow.getElementById('wib-backdrop');
+    this.modalEl = this.shadow.getElementById('wib-modal');
+    this.bodyEl = this.shadow.getElementById('wib-body');
+    this.tabsContainerEl = this.shadow.getElementById('wib-tabs');
+    this.paginationContainerEl = this.shadow.getElementById('wib-err-pagination');
+    this.pageIndicatorEl = this.shadow.getElementById('wib-page-indicator');
+    this.prevBtn = this.shadow.getElementById('wib-prev') as HTMLButtonElement;
+    this.nextBtn = this.shadow.getElementById('wib-next') as HTMLButtonElement;
+
+    // Bind event listeners once
     this.bindEvents();
+
+    // Initial render of badges & body
+    this.updateBadge();
+    this.updateHeader();
+    this.renderActiveTab();
+  }
+
+  private updateBadge(): void {
+    if (!this.badgeEl || !this.fabEl || !this.fabIconEl) return;
+
+    const errCount = this.reports.length;
+    const warnCount = this.warnings.length;
+    const perfCount = this.performanceIssues.length;
+
+    let badgeCount = '0';
+    if (errCount > 0) {
+      badgeCount = `${errCount}`;
+      this.badgeEl.style.background = '#f43f5e';
+      this.badgeEl.style.color = '#fff';
+      this.badgeEl.classList.add('wib-pulse');
+      this.fabEl.style.borderColor = '#f43f5e';
+      this.fabEl.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5), 0 0 16px rgba(244,63,94,0.45)';
+      this.fabIconEl.style.stroke = '#f43f5e';
+    } else if (warnCount > 0 || perfCount > 0) {
+      badgeCount = `${warnCount + perfCount}`;
+      this.badgeEl.style.background = '#f59e0b';
+      this.badgeEl.style.color = '#000';
+      this.badgeEl.classList.remove('wib-pulse');
+      this.fabEl.style.borderColor = 'rgba(245,158,11,0.5)';
+      this.fabEl.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5), 0 0 16px rgba(245,158,11,0.3)';
+      this.fabIconEl.style.stroke = '#f59e0b';
+    } else {
+      this.badgeEl.style.background = '#10b981';
+      this.badgeEl.style.color = '#fff';
+      this.badgeEl.classList.remove('wib-pulse');
+      this.fabEl.style.borderColor = 'rgba(255,255,255,0.15)';
+      this.fabEl.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5), 0 0 16px rgba(16,185,129,0.2)';
+      this.fabIconEl.style.stroke = '#38bdf8';
+    }
+
+    this.badgeEl.textContent = badgeCount;
+  }
+
+  private updateTabStyles(): void {
+    if (!this.shadow) return;
+    this.shadow.querySelectorAll<HTMLButtonElement>('.wib-tab').forEach((btn) => {
+      const tab = btn.getAttribute('data-tab');
+      if (tab === this.activeTab) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+
+  private updateHeader(): void {
+    if (!this.shadow) return;
+
+    const errCount = this.reports.length;
+    const warnCount = this.warnings.length;
+    const perfCount = this.performanceIssues.length;
+    const timelineCount = this.timelineEvents.length;
+
+    const errBadge = this.shadow.getElementById('wib-tab-badge-errors');
+    if (errBadge) {
+      errBadge.textContent = `${errCount}`;
+      if (errCount > 0) errBadge.classList.add('err');
+      else errBadge.classList.remove('err');
+    }
+
+    const warnBadge = this.shadow.getElementById('wib-tab-badge-warnings');
+    if (warnBadge) {
+      warnBadge.textContent = `${warnCount}`;
+      if (warnCount > 0) warnBadge.classList.add('warn');
+      else warnBadge.classList.remove('warn');
+    }
+
+    const perfBadge = this.shadow.getElementById('wib-tab-badge-perf');
+    if (perfBadge) {
+      perfBadge.textContent = `${perfCount}`;
+    }
+
+    const timelineBadge = this.shadow.getElementById('wib-tab-badge-timeline');
+    if (timelineBadge) {
+      timelineBadge.textContent = `${timelineCount}`;
+    }
+
+    // Pagination for multiple errors
+    if (this.paginationContainerEl && this.pageIndicatorEl && this.prevBtn && this.nextBtn) {
+      if (this.activeTab === 'errors' && errCount > 1) {
+        this.paginationContainerEl.style.display = 'flex';
+        this.pageIndicatorEl.textContent = `${this.currentReportIndex + 1}/${errCount}`;
+        this.prevBtn.disabled = this.currentReportIndex === 0;
+        this.nextBtn.disabled = this.currentReportIndex >= errCount - 1;
+      } else {
+        this.paginationContainerEl.style.display = 'none';
+      }
+    }
+  }
+
+  private renderActiveTab(): void {
+    if (!this.bodyEl) return;
+    this.bodyEl.innerHTML = `<div class="wib-tab-pane">${this.renderActiveTabContent()}</div>`;
+    this.bodyEl.scrollTop = 0;
   }
 
   private renderActiveTabContent(): string {
@@ -531,7 +758,7 @@ export class ErrorOverlay {
           <div class="wib-sec-text">${escape(report.suggestedFix.explanation)}</div>
           ${patch ? `
             <div class="wib-diff">
-              ${patch.split('\n').map(l => {
+              ${patch.split('\n').map((l) => {
                 if (l.startsWith('+')) return `<span class="wib-diff-add">${escape(l)}</span>`;
                 if (l.startsWith('-')) return `<span class="wib-diff-del">${escape(l)}</span>`;
                 return `<span>${escape(l)}</span>`;
@@ -545,7 +772,7 @@ export class ErrorOverlay {
         <div>
           <div class="wib-sec-title" style="color:#94a3b8;">Source Code Snippet</div>
           <div class="wib-snip">
-            ${snippet.map(l => `
+            ${snippet.map((l) => `
               <div class="wib-snip-line ${l.isErrorLine ? 'err' : ''}">
                 <span class="wib-snip-no">${l.lineNumber}</span>
                 <span style="white-space:pre;flex:1;">${escape(l.content)}</span>
@@ -580,7 +807,7 @@ export class ErrorOverlay {
 
     return `
       <div style="display:flex;flex-direction:column;gap:10px;">
-        ${this.warnings.map(w => `
+        ${this.warnings.map((w) => `
           <div class="wib-list-item" style="border-left:3px solid #f59e0b;">
             <div class="wib-item-header">
               <span class="wib-chip wib-chip-warn">Warning</span>
@@ -607,7 +834,7 @@ export class ErrorOverlay {
 
     return `
       <div style="display:flex;flex-direction:column;gap:10px;">
-        ${this.performanceIssues.map(p => `
+        ${this.performanceIssues.map((p) => `
           <div class="wib-list-item" style="border-left:3px solid #38bdf8;">
             <div class="wib-item-header">
               <div style="display:flex;align-items:center;gap:8px;">
@@ -637,7 +864,7 @@ export class ErrorOverlay {
 
     return `
       <div style="display:flex;flex-direction:column;gap:8px;">
-        ${this.timelineEvents.slice(-30).reverse().map(e => `
+        ${this.timelineEvents.slice(-30).reverse().map((e) => `
           <div class="wib-list-item">
             <div class="wib-item-header">
               <div style="display:flex;align-items:center;gap:6px;">
@@ -660,7 +887,7 @@ export class ErrorOverlay {
       ? `${Math.round((performance as any).memory.usedJSHeapSize / 1048576)} MB / ${Math.round((performance as any).memory.totalJSHeapSize / 1048576)} MB`
       : 'Standard Browser Heap';
 
-    const frameworkName = (typeof window !== 'undefined' && (window as any).__VUE__ ? 'Vue 3' : 'Browser Application');
+    const frameworkName = typeof window !== 'undefined' && (window as any).__VUE__ ? 'Vue 3' : 'Browser Application';
 
     return `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -695,50 +922,59 @@ export class ErrorOverlay {
   private bindEvents(): void {
     if (!this.shadow) return;
 
-    this.shadow.getElementById('wib-fab')?.addEventListener('click', () => this.toggle());
+    this.fabEl?.addEventListener('click', () => this.toggle());
     this.shadow.getElementById('wib-close')?.addEventListener('click', () => this.close());
-    this.shadow.getElementById('wib-backdrop')?.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).id === 'wib-backdrop') this.close();
+    this.backdropEl?.addEventListener('click', (e) => {
+      if (e.target === this.backdropEl) this.close();
     });
 
-    // Tab switching
-    this.shadow.querySelectorAll<HTMLButtonElement>('.wib-tab').forEach(btn => {
+    // Tab buttons click delegation
+    this.shadow.querySelectorAll<HTMLButtonElement>('.wib-tab').forEach((btn) => {
       btn.addEventListener('click', () => {
         const tab = btn.getAttribute('data-tab') as OverlayTab;
-        if (tab) {
-          this.activeTab = tab;
-          this.render();
-        }
+        if (tab) this.switchTab(tab);
       });
     });
 
-    // Switch tab buttons inside empty states
-    this.shadow.querySelectorAll<HTMLButtonElement>('[data-switch-tab]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tab = btn.getAttribute('data-switch-tab') as OverlayTab;
-        if (tab) {
-          this.activeTab = tab;
-          this.render();
-        }
-      });
-    });
-
-    // Navigation for reports
-    this.shadow.getElementById('wib-prev')?.addEventListener('click', () => {
-      if (this.currentReportIndex > 0) {
-        this.currentReportIndex--;
-        this.render();
+    // Body delegation for switch-tab buttons in empty states
+    this.bodyEl?.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-switch-tab]');
+      if (target) {
+        const tab = target.getAttribute('data-switch-tab') as OverlayTab;
+        if (tab) this.switchTab(tab);
       }
     });
 
-    this.shadow.getElementById('wib-next')?.addEventListener('click', () => {
+    // Navigation for multi-error reports
+    this.prevBtn?.addEventListener('click', () => {
+      if (this.currentReportIndex > 0) {
+        this.currentReportIndex--;
+        this.updateHeader();
+        this.renderActiveTab();
+      }
+    });
+
+    this.nextBtn?.addEventListener('click', () => {
       if (this.currentReportIndex < this.reports.length - 1) {
         this.currentReportIndex++;
-        this.render();
+        this.updateHeader();
+        this.renderActiveTab();
       }
     });
 
     this.shadow.getElementById('wib-clear')?.addEventListener('click', () => this.clear());
+
+    // Keyboard shortcuts
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && this.isOpen) {
+          this.close();
+        } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+          e.preventDefault();
+          this.toggle();
+        }
+      });
+    }
   }
 }
 
@@ -747,24 +983,26 @@ function escape(str: unknown): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
-function safeStringify(val: unknown): string {
-  if (val === null || val === undefined) return String(val);
-  if (typeof val !== 'object') return String(val);
+function safeStringify(obj: unknown, indent = 2): string {
+  if (obj === null || obj === undefined) return String(obj);
+  if (typeof obj !== 'object') return String(obj);
 
   const seen = new WeakSet();
   try {
     return JSON.stringify(
-      val,
+      obj,
       (key, value) => {
         if (typeof value === 'object' && value !== null) {
-          if (seen.has(value)) return '[Circular]';
+          if (seen.has(value)) {
+            return '[Circular Reference]';
+          }
           seen.add(value);
         }
         return value;
       },
-      2
+      indent
     );
   } catch {
-    return String(val);
+    return String(obj);
   }
 }

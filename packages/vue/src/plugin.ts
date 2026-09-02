@@ -26,6 +26,10 @@ export interface WhatItBrokeVueOptions {
   autoCaptureGlobalErrors?: boolean;
   /** Automatically monitor browser main-thread long tasks (default: true) */
   autoCapturePerformance?: boolean;
+  /** Automatically reset / close open popup on each refresh or HMR update (default: true) */
+  resetOnRefresh?: boolean;
+  /** Minimum blocking duration (in ms) to register as a Long Task (default: 100) */
+  minLongTaskDurationMs?: number;
 }
 
 export const WhatItBrokeVue = {
@@ -36,12 +40,50 @@ export const WhatItBrokeVue = {
 
     const enableOverlay = options?.overlay !== false && typeof window !== 'undefined' && typeof document !== 'undefined';
     if (enableOverlay) {
-      VueErrorOverlay.init({
+      const overlay = VueErrorOverlay.init({
         position: options?.overlayPosition,
         autoOpenOnCrash: options?.autoOpenOnCrash !== false,
         autoCaptureGlobalErrors: options?.autoCaptureGlobalErrors !== false,
         autoCapturePerformance: options?.autoCapturePerformance !== false,
+        resetOnRefresh: options?.resetOnRefresh !== false,
+        minLongTaskDurationMs: options?.minLongTaskDurationMs ?? 100,
       });
+
+      // On each refresh / plugin installation:
+      // If popup was open from previous session or HMR, reset & close it cleanly
+      if (options?.resetOnRefresh !== false) {
+        overlay.reset();
+      }
+
+      // 1. Page Unload / Navigation: Close popup immediately to prevent ghost flicker during reload
+      window.addEventListener('beforeunload', () => {
+        VueErrorOverlay.getInstance()?.close();
+      });
+      window.addEventListener('pagehide', () => {
+        VueErrorOverlay.getInstance()?.close();
+      });
+
+      // 2. Vite HMR Integration: Reset & close popup when hot module is replaced
+      if ((import.meta as any)?.hot) {
+        (import.meta as any).hot.dispose(() => {
+          VueErrorOverlay.getInstance()?.reset();
+        });
+      }
+
+      // 3. Vue 3 Internal HMR Hook: Reset popup on component reload
+      if ((window as any).__VUE_HMR_RUNTIME__) {
+        try {
+          const hmr = (window as any).__VUE_HMR_RUNTIME__;
+          const origReload = hmr.reload;
+          if (origReload && !(origReload as any).__wib_hooked) {
+            hmr.reload = function (...args: any[]) {
+              VueErrorOverlay.getInstance()?.reset();
+              return origReload.apply(this, args);
+            };
+            (hmr.reload as any).__wib_hooked = true;
+          }
+        } catch {}
+      }
     }
 
     // Record initialization timeline event

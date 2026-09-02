@@ -94,8 +94,10 @@ export class SourceMapResolver {
     }
 
     try {
-      const fs = typeof require !== 'undefined' ? require('node:fs') : (process as any).getBuiltinModule?.('node:fs');
-      const path = typeof require !== 'undefined' ? require('node:path') : (process as any).getBuiltinModule?.('node:path');
+      const fsMod = 'node:fs';
+      const pathMod = 'node:path';
+      const fs = typeof require !== 'undefined' ? require(fsMod) : (process as any).getBuiltinModule?.(fsMod);
+      const path = typeof require !== 'undefined' ? require(pathMod) : (process as any).getBuiltinModule?.(pathMod);
       if (!fs || !path) return null;
 
       const candidates = [

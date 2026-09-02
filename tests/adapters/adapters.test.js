@@ -174,6 +174,37 @@ test('VueErrorOverlay - initializes singleton and captures reports and warnings'
   overlay.open('system');
   overlay.close();
   overlay.clear();
+
+  // Verify reset and close methods for refresh lifecycle
+  assert.equal(typeof VueErrorOverlay.reset, 'function');
+  assert.equal(typeof VueErrorOverlay.close, 'function');
+  VueErrorOverlay.reset();
+  VueErrorOverlay.close();
+
+  // Re-initialization on refresh resets cleanly with custom minLongTaskDurationMs
+  const refreshedOverlay = VueErrorOverlay.init({ resetOnRefresh: true, minLongTaskDurationMs: 150 });
+  assert.ok(refreshedOverlay);
+
+  // Verify circular references in component state are handled safely without throwing
+  const circularState = { name: 'Dashboard' };
+  circularState.self = circularState;
+  const circularReport = {
+    ...mockReport,
+    context: {
+      ...mockReport.context,
+      framework: {
+        component: {
+          name: 'Dashboard',
+          state: circularState,
+        },
+      },
+    },
+  };
+
+  assert.doesNotThrow(() => {
+    VueErrorOverlay.addReport(circularReport);
+    refreshedOverlay.open('errors');
+  });
 });
 
 test('ReactErrorOverlay and AngularErrorOverlay - re-exported cleanly across framework packages', () => {
